@@ -1,42 +1,30 @@
 package hava.annotation.spring;
 
-import java.io.IOException;
+import com.google.auto.service.AutoService;
+import hava.annotation.spring.annotations.CRUD;
+import hava.annotation.spring.annotations.HASConfiguration;
+import hava.annotation.spring.generators.CodeGenerator;
+import org.springframework.stereotype.Controller;
+import org.springframework.stereotype.Repository;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.RestController;
+
+import javax.annotation.processing.*;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
+import javax.persistence.Entity;
+import javax.tools.Diagnostic.Kind;
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Map.Entry;
 import java.util.Set;
-import javax.annotation.processing.AbstractProcessor;
-import javax.annotation.processing.Filer;
-import javax.annotation.processing.Messager;
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.annotation.processing.Processor;
-import javax.annotation.processing.RoundEnvironment;
-import javax.lang.model.SourceVersion;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.Modifier;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.util.Elements;
-import javax.lang.model.util.Types;
-import javax.persistence.Entity;
-import javax.tools.Diagnostic.Kind;
-import org.springframework.stereotype.Controller;
-import org.springframework.stereotype.Repository;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.bind.annotation.RestController;
-import com.google.auto.service.AutoService;
-import com.squareup.javapoet.AnnotationSpec;
-import com.squareup.javapoet.JavaFile;
-import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.TypeSpec;
-import hava.annotation.spring.CodeGenerator.Layer;
 
-@SuppressWarnings("unchecked")
 @AutoService(Processor.class)
 public class AnnotationProcessor extends AbstractProcessor {
 
@@ -52,9 +40,9 @@ public class AnnotationProcessor extends AbstractProcessor {
 
   {
     identifiers.put("Controller", toArray(RestController.class, Controller.class));
-    identifiers.put("Service", toArray(Service.class, hava.annotation.spring.Service.class));
+    identifiers.put("Service", toArray(Service.class, hava.annotation.spring.annotations.Service.class));
     identifiers.put("Entity", toArray(Entity.class));
-    identifiers.put("Repository", toArray(Repository.class, hava.annotation.spring.Repository.class));
+    identifiers.put("Repository", toArray(Repository.class, hava.annotation.spring.annotations.Repository.class));
   }
   
   private Class<? extends Annotation>[] toArray(Class<? extends Annotation>... t) {
@@ -87,12 +75,21 @@ public class AnnotationProcessor extends AbstractProcessor {
     Set<String> annotations = new LinkedHashSet<>();
 
     annotations.add(CRUD.class.getCanonicalName());
+    annotations.add(HASConfiguration.class.getCanonicalName());
 
     return annotations;
   }
 
   @Override
   public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+
+    for (Element el : roundEnv.getElementsAnnotatedWith(HASConfiguration.class)) {
+
+      HASConfiguration config = el.getAnnotation(HASConfiguration.class);
+
+      this.codeGenerator.setSuffixes(config.suffixes());
+      this.codeGenerator.setDebug(config.debug());
+    }
 
     for (Element annotatedElement : roundEnv.getElementsAnnotatedWith(CRUD.class)) {
 
@@ -127,13 +124,7 @@ public class AnnotationProcessor extends AbstractProcessor {
                                              + "or have it's class name ending with: \"Entity\", \"Service\", \"Controller\" or \"Repository\".", annotatedElement);
         return false;
       }
-      
-      /*try {
-        generateCode((TypeElement) annotatedElement);
-      } catch (IOException e) {
-        // TODO Auto-generated catch block
-        e.printStackTrace();
-      }*/
+
       try {
         this.codeGenerator.generateClasses(annotatedElement, type, isAnnotated);
       } catch (RuntimeException e) {
@@ -145,7 +136,7 @@ public class AnnotationProcessor extends AbstractProcessor {
     return true;
   }
 
-  private void generateCode(TypeElement element) throws IOException {
+  /*private void generateCode(TypeElement element) throws IOException {
 
     MethodSpec method = MethodSpec.methodBuilder("all").addModifiers(Modifier.PUBLIC)
         .returns(String.class).addAnnotation(GetMapping.class).addAnnotation(ResponseBody.class)
@@ -169,5 +160,5 @@ public class AnnotationProcessor extends AbstractProcessor {
     javaFile.writeTo(System.out);
 
     javaFile.writeTo(this.filer);
-  }
+  }*/
 }

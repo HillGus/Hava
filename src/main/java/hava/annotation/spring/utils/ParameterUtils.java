@@ -1,4 +1,4 @@
-package hava.annotation.spring;
+package hava.annotation.spring.utils;
 
 import com.squareup.javapoet.AnnotationSpec;
 import com.squareup.javapoet.ParameterSpec;

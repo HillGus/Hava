@@ -1,8 +1,9 @@
-package hava.annotation.spring;
+package hava.annotation.spring.utils;
 
 import com.squareup.javapoet.AnnotationSpec;
 import org.springframework.web.bind.annotation.*;
 
+import javax.sound.midi.Soundbank;
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
 import java.util.List;
@@ -31,13 +32,12 @@ public class AnnotationUtils {
 
 				if (keyValue[1].getClass() != String.class)
 					throw new RuntimeException(String.format("Second value of keyValues must be a String. see method addMember " +
-															" of inner Builder on $s/AnnotationSpec.java",
+															" of inner Builder on %s/AnnotationSpec.java",
 															"addMember(String, String, Object...)",
 															this.javaPoetGit));
 
-				List<Object> args = Arrays.asList(keyValues);
-				args.remove(0);
-				args.remove(0);
+				List<Object> args = Arrays.asList(keyValue);
+				args = args.subList(2, args.size());
 
 				builder.addMember(keyValue[0].toString(), keyValue[1].toString(), args.toArray());
 			});

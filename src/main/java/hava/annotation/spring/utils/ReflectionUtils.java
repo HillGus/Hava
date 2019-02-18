@@ -1,4 +1,4 @@
-package hava.annotation.spring;
+package hava.annotation.spring.utils;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -6,7 +6,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 
-class ReflectionUtils {
+public class ReflectionUtils {
 
 	public Constructor<?> getConstructor(Class<?> objectClass, Class<?>... paramsClasses) {
 
