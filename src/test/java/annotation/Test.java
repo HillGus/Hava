@@ -6,7 +6,7 @@ import hava.annotation.spring.CRUD;
 
 @Entity
 @CRUD
-public class TestEntity {
+public class Test {
 
   @Id
   private Long id;
