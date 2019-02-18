@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import com.google.gson.Gson;
 import com.squareup.javapoet.AnnotationSpec;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.FieldSpec;
@@ -245,14 +246,12 @@ public class CodeGenerator {
     Class<ParameterizedTypeName> cls = ParameterizedTypeName.class;
     
     try {
-      cls.getField("rawType").setAccessible(true);
-      cls.getField("typeArguments").setAccessible(true);
-      ParameterizedTypeName instance = cls.newInstance();
-      cls.getField("rawType").set(instance, className);
-      cls.getField("typeArguments").set(instance, Arrays.asList(types));
+      Gson g = new Gson();
+      ParameterizedTypeName instance = g.fromJson("{\n\"rawType\":" + g.toJson(className) + ",\n\"typeArguments\":" + g.toJson(Arrays.asList(types)) + "}", ParameterizedTypeName.class);
+      System.out.println(g.toJson(ParameterizedTypeName.get(JpaRepository.class, String.class, Long.class)));
+      System.out.println(g.toJson(instance));
       return instance;
-    } catch (IllegalArgumentException | IllegalAccessException | NoSuchFieldException
-        | SecurityException | InstantiationException e) {
+    } catch (IllegalArgumentException | SecurityException e) {
       
       e.printStackTrace();
       throw new RuntimeException("Could not get ParameterizedTypeName for " + className.simpleName() + " using generic arguments " + Arrays.asList(types) + ": " + e.getMessage());
