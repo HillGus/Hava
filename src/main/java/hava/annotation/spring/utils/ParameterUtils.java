@@ -3,6 +3,7 @@ package hava.annotation.spring.utils;
 import com.squareup.javapoet.AnnotationSpec;
 import com.squareup.javapoet.ParameterSpec;
 import com.squareup.javapoet.TypeName;
+import hava.annotation.spring.generators.CodeGenerator;
 
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
@@ -11,6 +12,18 @@ import java.util.stream.Collectors;
 
 public class ParameterUtils {
 
+
+	public ParameterSpec build(String paramName, Class<?> type) {
+
+		return this.build(paramName, new CodeGenerator().getTypeName(type.getCanonicalName(), ""));
+	}
+
+	public ParameterSpec build(String paramName, Class<?> type, AnnotationSpec... annotations) {
+
+		return this.build(paramName,
+			new CodeGenerator().getTypeName(type.getCanonicalName(), ""),
+			annotations);
+	}
 
 	public ParameterSpec build(String paramName, TypeName typeName) {
 

@@ -6,10 +6,10 @@ import hava.annotation.spring.annotations.CRUD;
 import hava.annotation.spring.annotations.Filter;
 
 @Entity
-@CRUD(filter = @Filter(parameters = {"Teste", "var1"},
-                        parametersTypes = {String.class, Integer.class}))
+@CRUD(filter = @Filter(fields = "*", likeType = Filter.LikeType.END))
 public class Test {
 
   @Id
   private Long id;
+  private String nome;
 }

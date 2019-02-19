@@ -10,5 +10,7 @@ import java.lang.annotation.Target;
 public @interface CRUD {
 
 	String endpoint() default "";
+	String name() default "";
+	boolean pagination() default true;
 	Filter filter() default @Filter;
 }

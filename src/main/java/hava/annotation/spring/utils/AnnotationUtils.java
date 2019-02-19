@@ -74,4 +74,11 @@ public class AnnotationUtils {
 
 		return this.buildWithValue(RequestMapping.class, value);
 	}
+
+	public AnnotationSpec requestParam(/*String value, */boolean required) {
+
+		return this.build(RequestParam.class,
+			//new Object[]{"value", "$S", value},
+			new Object[]{"required", "$L", required});
+	}
 }

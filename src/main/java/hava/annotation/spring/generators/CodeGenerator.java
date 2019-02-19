@@ -1,29 +1,23 @@
 package hava.annotation.spring.generators;
 
-import com.google.gson.Gson;
 import com.squareup.javapoet.*;
 import hava.annotation.spring.annotations.CRUD;
 import hava.annotation.spring.annotations.Filter;
 import hava.annotation.spring.annotations.HASConfiguration;
 import hava.annotation.spring.annotations.Suffixes;
 import hava.annotation.spring.utils.AnnotationUtils;
+import hava.annotation.spring.utils.ElementUtils;
 import hava.annotation.spring.utils.ParameterUtils;
 import hava.annotation.spring.utils.ReflectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.data.domain.Pageable;
 
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.Element;
-import javax.lang.model.element.Modifier;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
-import javax.persistence.Id;
-import javax.tools.Diagnostic.Kind;
 import java.io.IOException;
-import java.util.Arrays;
 
 public class CodeGenerator {
 
@@ -31,17 +25,18 @@ public class CodeGenerator {
 	public final ReflectionUtils refUtils = new ReflectionUtils();
 	public final ParameterUtils parUtils = new ParameterUtils();
 	public final AnnotationUtils annUtils = new AnnotationUtils();
+	public  ElementUtils eleUtils;
 
 	private ServiceGenerator serGenerator = new ServiceGenerator(this);
 	private ControllerGenerator conGenerator = new ControllerGenerator(this);
+	private RepositoryGenerator repGenerator = new RepositoryGenerator(this);
 
 	private Filer filer;
 	private Messager messager;
 	private Types typeUtils;
 	private Elements elementUtils;
 
-	private TypeName elementType;
-	private TypeName elementIdType = null;
+	private Element element;
 
 	private boolean debug;
 	private String repSuffix;
@@ -51,7 +46,10 @@ public class CodeGenerator {
 	private String prefix;
 	private String packageName;
 	private Filter filter;
+	private boolean pagination;
 
+
+	public CodeGenerator() {}
 
 	public CodeGenerator(Elements elementUtils, Types typeUtils, Messager messager, Filer filer) {
 
@@ -69,71 +67,40 @@ public class CodeGenerator {
 	}
 
 
-	public enum Layer {
-		REPOSITORY, SERVICE, CONTROLLER
-	}
+	public void generateClasses(Element element) throws RuntimeException {
 
+		this.element = element;
+		this.prefix = element.getSimpleName().toString();
+		this.packageName = this.elementUtils.getPackageOf(element).getQualifiedName().toString();
 
-	public void generateClasses(Element element, String type, boolean isAnnotated) throws RuntimeException {
-
-		Layer startFrom = type.equals("Entity") ? Layer.REPOSITORY : type.equals("Repository") ?
-			Layer.SERVICE : type.equals("Service") ? Layer.SERVICE : type.equals("Controller") ? Layer.CONTROLLER : null;
-
-		if (startFrom == null) {
-			this.messager.printMessage(Kind.ERROR, "Invalid type: " + type, element);
-			throw new RuntimeException("Invalid type: " + type);
-		}
-
-		final String elementName = element.getSimpleName().toString();
-		prefix = isAnnotated ? elementName : elementName.substring(0, elementName.length() - type.length());
-		packageName = this.elementUtils.getPackageOf(element).getQualifiedName().toString();
-
-		this.elementType = getTypeName(element.getSimpleName().toString(), "Cound not find class");
+		this.eleUtils = new ElementUtils(element);
 
 		CRUD annCrud = element.getAnnotation(CRUD.class);
-		String annEndpoint = annCrud.endpoint();
-		String endpoint = annEndpoint == "" ? this.prefix.toLowerCase() : annEndpoint;
+		this.prefix = "".equals(annCrud.name()) ? this.prefix : annCrud.name();
 		this.filter = annCrud.filter();
+		this.pagination = annCrud.pagination();
+		String annEndpoint = annCrud.endpoint();
+		String endpoint = "".equals(annEndpoint) ? this.prefix.toLowerCase() : annEndpoint;
 
-		switch (startFrom) {
-			case REPOSITORY:
-				generateRepository(element);
-			case SERVICE:
-				generateService();
-			case CONTROLLER:
-				generateController(endpoint);
-		}
+		generateRepository();
+		generateService();
+		generateController(endpoint);
 	}
 
-	private void generateRepository(Element element) throws RuntimeException {
 
-		for (Element el : element.getEnclosedElements()) {
+	private void generateRepository() throws RuntimeException {
 
-			if (el.getAnnotation(Id.class) != null) {
-				this.elementIdType = getTypeName(ClassName.get(el.asType()).toString(),
-					"Could not get class name of " + element.getSimpleName().toString());
-			}
-		}
-
-		if (this.elementIdType == null)
-			throw new RuntimeException("A Entity must have a field annotated with javax.persistence.Id");
-
-		TypeSpec repositorySpec = TypeSpec.interfaceBuilder(prefix + repSuffix)
-			.addModifiers(Modifier.PUBLIC)
-			.addSuperinterface(getParameterizedTypeName(JpaRepository.class, elementType, elementIdType))
-			.build();
-
-		save(repositorySpec);
+		save(this.repGenerator.generate(this.prefix, this.filter, this.pagination));
 	}
 
 	private void generateService() throws RuntimeException {
 
-		save(this.serGenerator.generate(this.prefix, this.filter));
+		save(this.serGenerator.generate(this.prefix, this.filter, this.pagination));
 	}
 
 	private void generateController(String endpoint) throws RuntimeException {
 
-		save(this.conGenerator.generate(this.prefix, endpoint, this.filter));
+		save(this.conGenerator.generate(this.prefix, this.filter, this.pagination, endpoint));
 	}
 
 
@@ -167,7 +134,7 @@ public class CodeGenerator {
 			.addAnnotation(Autowired.class).build();
 	}
 
-	TypeName getTypeName(String typeName, String exceptionMessage) {
+	public TypeName getTypeName(String typeName, String exceptionMessage) {
 
 		try {
 
@@ -177,47 +144,8 @@ public class CodeGenerator {
 				new Object[]{typeName});
 		} catch (RuntimeException e) {
 
-			e.printStackTrace();
 			throw new RuntimeException(exceptionMessage + ": " + e.getMessage());
 		}
-	}
-
-	private ParameterizedTypeName getParameterizedTypeName(Class<?> className, TypeName... types) {
-
-		try {
-			ParameterizedTypeName instance = new Gson().fromJson(
-				new Gson().toJson(ParameterizedTypeName.get(JpaRepository.class)), ParameterizedTypeName.class);
-			this.refUtils.setValues(
-				instance,
-				new String[]{"rawType", "typeArguments"},
-				new Object[]{ClassName.get(className), Arrays.asList(types)});
-			return instance;
-		} catch (IllegalArgumentException | SecurityException e) {
-
-			throw new RuntimeException(
-				String.format("Could not get ParameterizedTypeName for %s using generic arguments %s: %s",
-					className, Arrays.asList(types), e.getMessage()));
-		}
-	}
-
-	ParameterSpec elementParam() {
-
-		return this.parUtils.build("entity", this.elementType);
-	}
-
-	ParameterSpec elementReqBodyParam() {
-
-		return this.parUtils.build("entity", this.elementType, RequestBody.class);
-	}
-
-	ParameterSpec elementIdParam() {
-
-		return this.parUtils.build("id", this.elementIdType);
-	}
-
-	ParameterSpec elementIdPathParam() {
-
-		return this.parUtils.build("id", this.elementIdType, this.annUtils.buildWithValue(PathVariable.class, "{id}"));
 	}
 
 

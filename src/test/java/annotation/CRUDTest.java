@@ -1,8 +1,8 @@
 package annotation;
 
 import hava.annotation.spring.annotations.HASConfiguration;
-import hava.annotation.spring.annotations.Suffixes;
 
+@HASConfiguration(debug = true)
 public class CRUDTest {
 
   public static void main(String[] args) {
