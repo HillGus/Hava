@@ -11,4 +11,5 @@ public @interface HASConfiguration {
 
 	boolean debug() default false;
 	Suffixes suffixes() default @Suffixes;
+	String classesPrefix() default "AG";
 }

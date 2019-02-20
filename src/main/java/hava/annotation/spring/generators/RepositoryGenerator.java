@@ -1,39 +1,57 @@
 package hava.annotation.spring.generators;
 
-import com.google.gson.Gson;
 import com.squareup.javapoet.*;
+import hava.annotation.spring.annotations.CRUD;
 import hava.annotation.spring.annotations.Filter;
+import hava.annotation.spring.builders.AnnotationBuilder;
+import hava.annotation.spring.builders.ParameterBuilder;
+import hava.annotation.spring.utils.ElementUtils;
+import hava.annotation.spring.utils.MiscUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
-import javax.persistence.Transient;
+import javax.lang.model.type.TypeMirror;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class RepositoryGenerator {
 
-	private CodeGenerator codeGenerator;
+	private ElementUtils eleUtils;
+	private MiscUtils miscUtils;
+	private AnnotationBuilder annBuilder;
+	private ParameterBuilder parBuilder;
 
-	public RepositoryGenerator(CodeGenerator codeGenerator) {
+	private String suffix;
+	private String classesPrefix;
 
-		this.codeGenerator = codeGenerator;
+	RepositoryGenerator(CodeGenerator codeGenerator, String suffix, String classesPrefix) {
+
+		this.eleUtils = codeGenerator.eleUtils;
+		this.miscUtils = codeGenerator.miscUtils;
+		this.annBuilder = codeGenerator.annBuilder;
+		this.parBuilder = codeGenerator.parBuilder;
+		this.suffix = suffix;
+		this.classesPrefix = classesPrefix;
 	}
 
-	public TypeSpec generate(String prefix, Filter filter, boolean pagination) {
+	TypeSpec generate(String prefix, CRUD crud) {
 
-		TypeSpec.Builder builder = TypeSpec.interfaceBuilder(prefix + this.codeGenerator.repSuffix())
+		TypeSpec.Builder builder = TypeSpec.interfaceBuilder(this.classesPrefix + prefix + this.suffix)
 			.addModifiers(Modifier.PUBLIC)
-			.addSuperinterface(getParameterizedTypeName(JpaRepository.class,
-				this.codeGenerator.eleUtils.elementType(),
-				this.codeGenerator.eleUtils.elementIdType()));
+			.addSuperinterface(
+				getParameterizedTypeName(
+					JpaRepository.class,
+					eleUtils.elementTypeStr(),
+					eleUtils.elementIdTypeStr())
+			);
 
-		if (filter.fields().length > 0)
-			builder.addMethod(getFilterMethod(filter, pagination));
+		if (crud.filter().fields().length > 0)
+			builder.addMethod(getFilterMethod(crud.filter(), crud.pagination()));
 
 		return builder.build();
 	}
@@ -45,21 +63,33 @@ public class RepositoryGenerator {
 
 		if (fields.length == 1 && "*".equals(fields[0])) {
 
-			fields = codeGenerator.eleUtils
-				.getNamesWithoutAnnotationByKind(Transient.class, ElementKind.FIELD)
+			fields = eleUtils
+				.getNonTransientFieldsNames()
 				.toArray(new String[]{});
 		}
 
 		MethodSpec.Builder builder = addArguments(MethodSpec.methodBuilder("allByFilter"), fields);
-		builder.addAnnotation(codeGenerator.annUtils.buildWithValue(Query.class, getFilterQuery(fields, filter.likeType())));
-		builder.addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT);
+
+		builder.addAnnotation(
+			annBuilder.build(
+				Query.class,
+				getFilterQuery(fields, filter.likeType())))
+			.addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT);
 
 		if (!pagination) {
-			builder.returns(getParameterizedTypeName(List.class, codeGenerator.eleUtils.elementType()));
+			builder.returns(
+				getParameterizedTypeName(
+					List.class,
+					eleUtils.elementTypeStr()));
 		} else {
-			builder.returns(getParameterizedTypeName(Page.class, codeGenerator.eleUtils.elementType()));
-			builder.addParameter(codeGenerator
-				.parUtils.build("pageable", Pageable.class));
+
+			builder
+				.returns(
+					getParameterizedTypeName(
+						Page.class,
+						eleUtils.elementTypeStr()))
+				.addParameter(
+				parBuilder.build("pageable", Pageable.class));
 		}
 
 		return builder.build();
@@ -67,23 +97,25 @@ public class RepositoryGenerator {
 
 	private String getFilterQuery(String[] fields, Filter.LikeType likeType) {
 
-		String select = "select o from " + codeGenerator.eleUtils.elementType().toString() + " o";
+		StringBuilder builder = new StringBuilder("select o from " + eleUtils.elementSimpleName() + " o");
 
 		if (fields.length > 0)
-			select += " where ";
+			builder.append(" where ");
 
 		for (int i = 0; i < fields.length; i++) {
 
 			String field = fields[i];
 			String line = "";
-			String fieldType = codeGenerator.eleUtils.getEnclosingElement(field).asType().toString();
+			String fieldType = eleUtils.getEnclosedTypeStr(field);
 
 			line += "(:" + field + " is null or ";
 
-			if (fieldType.equals("java.lang.String")) {
+			if (fieldType.equals("java.lang.String")
+				&& likeType != Filter.LikeType.NONE) {
+
 				line += "LOWER(o." + field + ") like LOWER(CONCAT(";
 
-				if (likeType == Filter.LikeType.START || likeType == Filter.LikeType.BOTH)
+				if (likeType == Filter.LikeType.START  || likeType == Filter.LikeType.BOTH)
 					line += "'%', ";
 
 				line += ":" + field;
@@ -91,50 +123,56 @@ public class RepositoryGenerator {
 				if (likeType == Filter.LikeType.END || likeType == Filter.LikeType.BOTH)
 					line += ", '%'";
 
-				line += ")))";
+				line += "))";
 			} else {
-				line += "o." + field + " = :" + field + ")";
+
+				line += "o." + field + " = :" + field;
 			}
+
+			line += ")";
 
 			if (i < fields.length - 1)
 				line += " and ";
 
-			select += line;
+			builder.append(line);
 		}
 
-		return select;
+		return builder.toString();
 	}
 
 	private MethodSpec.Builder addArguments(MethodSpec.Builder builder, String[] fields) {
 
-		for (String field : fields) {
+		Arrays.stream(fields)
+			.forEach(field -> {
 
-			String fieldType = codeGenerator.eleUtils.getEnclosingElement(field).asType().toString();
+			TypeMirror fieldType = eleUtils.getEnclosedElement(field).asType();
 
 			builder.addParameter(
-				codeGenerator.parUtils.build(field,
-					codeGenerator.getTypeName(fieldType, ""),
-					codeGenerator.annUtils.buildWithValue(Param.class, field)));
-		}
+				parBuilder.build(
+					field,
+					this.miscUtils.getTypeName(fieldType),
+					annBuilder.build(Param.class, field))
+			);
+			});
 
 		return builder;
 	}
 
-	private ParameterizedTypeName getParameterizedTypeName(Class<?> className, TypeName... types) {
+	private ParameterizedTypeName getParameterizedTypeName(Class<?> className, String... typesNames) {
+
+		List<TypeVariableName> types = Arrays.stream(typesNames)
+			.map(TypeVariableName::get)
+			.collect(Collectors.toList());
 
 		try {
-			ParameterizedTypeName instance = new Gson().fromJson(
-				new Gson().toJson(ParameterizedTypeName.get(JpaRepository.class)), ParameterizedTypeName.class);
-			this.codeGenerator.refUtils.setValues(
-				instance,
-				new String[]{"rawType", "typeArguments"},
-				new Object[]{ClassName.get(className), Arrays.asList(types)});
-			return instance;
-		} catch (IllegalArgumentException | SecurityException e) {
+			return ParameterizedTypeName.get(ClassName.get(className),
+											types.toArray(new TypeVariableName[]{}));
+
+		} catch (Exception e) {
 
 			throw new RuntimeException(
 				String.format("Could not get ParameterizedTypeName for %s using generic arguments %s: %s",
-					className, Arrays.asList(types), e.getMessage()));
+					className, Arrays.asList(typesNames), e.getMessage()));
 		}
 	}
 }

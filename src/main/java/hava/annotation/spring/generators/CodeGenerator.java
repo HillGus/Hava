@@ -2,65 +2,52 @@ package hava.annotation.spring.generators;
 
 import com.squareup.javapoet.*;
 import hava.annotation.spring.annotations.CRUD;
-import hava.annotation.spring.annotations.Filter;
 import hava.annotation.spring.annotations.HASConfiguration;
 import hava.annotation.spring.annotations.Suffixes;
-import hava.annotation.spring.utils.AnnotationUtils;
+import hava.annotation.spring.builders.AnnotationBuilder;
 import hava.annotation.spring.utils.ElementUtils;
-import hava.annotation.spring.utils.ParameterUtils;
-import hava.annotation.spring.utils.ReflectionUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Pageable;
+import hava.annotation.spring.builders.ParameterBuilder;
+import hava.annotation.spring.utils.MiscUtils;
 
 import javax.annotation.processing.Filer;
-import javax.annotation.processing.Messager;
 import javax.lang.model.element.Element;
 import javax.lang.model.util.Elements;
-import javax.lang.model.util.Types;
 import java.io.IOException;
 
 public class CodeGenerator {
 
 
-	public final ReflectionUtils refUtils = new ReflectionUtils();
-	public final ParameterUtils parUtils = new ParameterUtils();
-	public final AnnotationUtils annUtils = new AnnotationUtils();
-	public  ElementUtils eleUtils;
+	ParameterBuilder parBuilder = new ParameterBuilder();
+	AnnotationBuilder annBuilder = new AnnotationBuilder();
+	MiscUtils miscUtils = new MiscUtils();
+	ElementUtils eleUtils;
 
-	private ServiceGenerator serGenerator = new ServiceGenerator(this);
-	private ControllerGenerator conGenerator = new ControllerGenerator(this);
-	private RepositoryGenerator repGenerator = new RepositoryGenerator(this);
+	private ServiceGenerator serGenerator;
+	private ControllerGenerator conGenerator;
+	private RepositoryGenerator repGenerator;
 
 	private Filer filer;
-	private Messager messager;
-	private Types typeUtils;
 	private Elements elementUtils;
-
-	private Element element;
 
 	private boolean debug;
 	private String repSuffix;
 	private String serSuffix;
 	private String conSuffix;
+	private String classesPrefix;
 
 	private String prefix;
 	private String packageName;
-	private Filter filter;
-	private boolean pagination;
+	private CRUD annCrud;
 
-
-	public CodeGenerator() {}
-
-	public CodeGenerator(Elements elementUtils, Types typeUtils, Messager messager, Filer filer) {
+	public CodeGenerator(Elements elementUtils, Filer filer) {
 
 		this.filer = filer;
-		this.messager = messager;
-		this.typeUtils = typeUtils;
 		this.elementUtils = elementUtils;
 
 		try {
 			setDebug((boolean) HASConfiguration.class.getDeclaredMethod("debug").getDefaultValue());
 			setSuffixes((Suffixes) HASConfiguration.class.getDeclaredMethod("suffixes").getDefaultValue());
+			setClassesPrefix((String) HASConfiguration.class.getDeclaredMethod("classesPrefix").getDefaultValue());
 		} catch (Exception e) {
 			throw new RuntimeException("Could not load default HASConfigurations: " + e.getMessage());
 		}
@@ -69,18 +56,18 @@ public class CodeGenerator {
 
 	public void generateClasses(Element element) throws RuntimeException {
 
-		this.element = element;
+		this.eleUtils = new ElementUtils(element, elementUtils);
+
+		this.repGenerator = new RepositoryGenerator(this, this.repSuffix, this.classesPrefix);
+		this.serGenerator = new ServiceGenerator(this, this.serSuffix, this.repSuffix, this.classesPrefix);
+		this.conGenerator = new ControllerGenerator(this, this.conSuffix, this.serSuffix, this.classesPrefix);
+
 		this.prefix = element.getSimpleName().toString();
-		this.packageName = this.elementUtils.getPackageOf(element).getQualifiedName().toString();
+		this.packageName = this.eleUtils.packageOf(element);
 
-		this.eleUtils = new ElementUtils(element);
-
-		CRUD annCrud = element.getAnnotation(CRUD.class);
+		this.annCrud = element.getAnnotation(CRUD.class);
 		this.prefix = "".equals(annCrud.name()) ? this.prefix : annCrud.name();
-		this.filter = annCrud.filter();
-		this.pagination = annCrud.pagination();
-		String annEndpoint = annCrud.endpoint();
-		String endpoint = "".equals(annEndpoint) ? this.prefix.toLowerCase() : annEndpoint;
+		String endpoint = "".equals(annCrud.endpoint()) ? this.prefix.toLowerCase() : annCrud.endpoint();
 
 		generateRepository();
 		generateService();
@@ -90,17 +77,17 @@ public class CodeGenerator {
 
 	private void generateRepository() throws RuntimeException {
 
-		save(this.repGenerator.generate(this.prefix, this.filter, this.pagination));
+		save(this.repGenerator.generate(this.prefix, this.annCrud));
 	}
 
 	private void generateService() throws RuntimeException {
 
-		save(this.serGenerator.generate(this.prefix, this.filter, this.pagination));
+		save(this.serGenerator.generate(this.prefix, this.annCrud));
 	}
 
 	private void generateController(String endpoint) throws RuntimeException {
 
-		save(this.conGenerator.generate(this.prefix, this.filter, this.pagination, endpoint));
+		save(this.conGenerator.generate(this.prefix, this.annCrud, endpoint));
 	}
 
 
@@ -110,41 +97,20 @@ public class CodeGenerator {
 
 		try {
 			if (debug) {
-				System.out.println("===================================\n");
+				System.out.println("\n" + StringUtils.center(
+					String.format(
+						"Class generated for %s",
+						this.eleUtils.elementTypeStr()
+					), 75, '-'));
+
 				file.writeTo(System.out);
-				System.out.println("===================================\n");
+
+				System.out.println(StringUtils.center("", 75, '-'));
 			}
 
 			file.writeTo(this.filer);
 		} catch (IOException e) {
 			throw new RuntimeException("Could not write class to filer: " + e.getMessage());
-		}
-	}
-
-	public FieldSpec autowire(String fieldName, String typeName) {
-
-		return this.autowire(fieldName, typeName, "Could not autowire " + fieldName + " using class " + typeName);
-	}
-
-	private FieldSpec autowire(String fieldName, String typeName, String exceptionMessage) {
-
-		TypeName type = getTypeName(typeName, exceptionMessage);
-
-		return FieldSpec.builder(type, fieldName)
-			.addAnnotation(Autowired.class).build();
-	}
-
-	public TypeName getTypeName(String typeName, String exceptionMessage) {
-
-		try {
-
-			return this.refUtils.construct(
-				TypeName.class,
-				new Class[]{String.class},
-				new Object[]{typeName});
-		} catch (RuntimeException e) {
-
-			throw new RuntimeException(exceptionMessage + ": " + e.getMessage());
 		}
 	}
 
@@ -161,18 +127,26 @@ public class CodeGenerator {
 		this.conSuffix = suffixes.controller();
 	}
 
-	String repSuffix() {
+	public void setClassesPrefix(String classesPrefix) {
 
-		return this.repSuffix;
+		this.classesPrefix = classesPrefix;
 	}
+}
 
-	String serSuffix() {
+class StringUtils {
 
-		return this.serSuffix;
-	}
+	public static String center(String s, int size, char pad) {
+		if (s == null || size <= s.length())
+			return s;
 
-	String conSuffix() {
-
-		return this.conSuffix;
+		StringBuilder sb = new StringBuilder(size);
+		for (int i = 0; i < (size - s.length()) / 2; i++) {
+			sb.append(pad);
+		}
+		sb.append(s);
+		while (sb.length() < size) {
+			sb.append(pad);
+		}
+		return sb.toString();
 	}
 }

@@ -2,16 +2,17 @@ package hava.annotation.spring.utils;
 
 import com.squareup.javapoet.ParameterSpec;
 import com.squareup.javapoet.TypeName;
-import hava.annotation.spring.generators.CodeGenerator;
+import hava.annotation.spring.builders.AnnotationBuilder;
+import hava.annotation.spring.builders.ParameterBuilder;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
-import javax.lang.model.util.Types;
+import javax.lang.model.util.Elements;
 import javax.persistence.Id;
 import javax.persistence.Transient;
-import java.lang.annotation.Annotation;
+import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -21,53 +22,57 @@ public class ElementUtils {
 	private Element element;
 	private TypeName elementType;
 	private TypeName elementIdType = null;
+	private HashMap<String, Element> enclosedElement = new HashMap<>();
 
-	private ParameterUtils parUtils = new ParameterUtils();
-	private AnnotationUtils annUtils = new AnnotationUtils();
-	private Types typeUtils;
+	private ParameterBuilder parUtils = new ParameterBuilder();
+	private AnnotationBuilder annUtils = new AnnotationBuilder();
+	private MiscUtils miscUtils = new MiscUtils();
+	private Elements utils;
 
-	public ElementUtils(Types typeUtils) {
-
-		this.typeUtils = typeUtils;
-	}
-
-	public ElementUtils(Element element) {
+	public ElementUtils(Element element, Elements utils) {
 
 		this.element = element;
+		this.utils = utils;
 
-		this.elementType = new CodeGenerator()
-			.getTypeName(element.getSimpleName().toString(),
-				"Cound not find class");
+		this.elementType = this.miscUtils.getTypeName(element.asType());
 
 		for (Element el : this.element.getEnclosedElements()) {
 
 			if (el.getAnnotation(Id.class) != null) {
-				this.elementIdType = new CodeGenerator().getTypeName(el.asType().toString(),
-					"Could not get class name of " + element.getSimpleName().toString());
+				this.elementIdType = this.miscUtils.getTypeName(el.asType());
 			}
+		}
+
+		for (Element el : element.getEnclosedElements()) {
+
+			this.enclosedElement.put(el.getSimpleName().toString(), el);
 		}
 
 		if (this.elementIdType == null)
 			throw new RuntimeException("A Entity must have a field annotated with javax.persistence.Id");
 	}
 
-	public Element getEnclosingElement(String name) {
+	public String packageOf(Element element) {
+
+		return this.utils.getPackageOf(element).getQualifiedName().toString();
+	}
+
+	public String packageName() {
+
+		return this.packageOf(this.element);
+	}
+
+	public Element getEnclosedElement(String name) {
 
 		if (name == null)
 			return null;
 
-		for (Element element : this.element.getEnclosedElements()) {
-
-			if (name.equals(element.getSimpleName().toString()))
-				return element;
-		}
-
-		return null;
+		return this.enclosedElement.get(name);
 	}
 
-	public Element getElement() {
+	public String getEnclosedTypeStr(String elementName) {
 
-		return this.element;
+		return this.getEnclosedElement(elementName).asType().toString();
 	}
 
 	public List<? extends Element> getEnclosedElements() {
@@ -75,29 +80,35 @@ public class ElementUtils {
 		return this.element.getEnclosedElements();
 	}
 
-	public List<? extends Element> getAllElementsWithoutAnnotationByKind(Class<? extends Annotation> annotation, ElementKind kind) {
+	public List<? extends Element> getNonTransientFields() {
 
 		return getEnclosedElements().stream()
-			.filter(el -> el.getAnnotationsByType(annotation).length == 0
-				 && ((Element) el).getKind() == kind)
+			.filter(el -> el.getAnnotation(Transient.class) == null
+					&& el.getKind() == ElementKind.FIELD
+			)
 			.collect(Collectors.toList());
 	}
 
-	public List<String> getNamesWithoutAnnotationByKind(Class<? extends Annotation> annotation, ElementKind kind) {
+	public List<String> getNonTransientFieldsNames() {
 
-		return getAllElementsWithoutAnnotationByKind(Transient.class, kind).stream()
-			.map(el -> el.getSimpleName().toString())
+		return this.getNonTransientFields()
+			.stream().map(f -> f.getSimpleName().toString())
 			.collect(Collectors.toList());
 	}
 
-	public TypeName elementType() {
+	public String elementSimpleName() {
 
-		return this.elementType;
+		return this.element.getSimpleName().toString();
 	}
 
-	public TypeName elementIdType() {
+	public String elementTypeStr() {
 
-		return this.elementIdType;
+		return this.elementType.toString();
+	}
+
+	public String elementIdTypeStr() {
+
+		return this.elementIdType.toString();
 	}
 
 	public ParameterSpec elementParam() {
@@ -117,6 +128,6 @@ public class ElementUtils {
 
 	public ParameterSpec elementIdPathParam() {
 
-		return this.parUtils.build("id", this.elementIdType, this.annUtils.buildWithValue(PathVariable.class, "id"));
+		return this.parUtils.build("id", this.elementIdType, this.annUtils.build(PathVariable.class, "id"));
 	}
 }

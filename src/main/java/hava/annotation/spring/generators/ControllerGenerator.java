@@ -2,59 +2,79 @@ package hava.annotation.spring.generators;
 
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeSpec;
+import hava.annotation.spring.annotations.CRUD;
 import hava.annotation.spring.annotations.Filter;
+import hava.annotation.spring.builders.AnnotationBuilder;
+import hava.annotation.spring.utils.ElementUtils;
+import hava.annotation.spring.builders.ParameterBuilder;
+import hava.annotation.spring.utils.MiscUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
-import javax.persistence.Transient;
+import javax.lang.model.type.TypeMirror;
+import java.util.Arrays;
 
 public class ControllerGenerator {
 
 
-	private CodeGenerator codeGenerator;
+	private ElementUtils eleUtils;
+	private AnnotationBuilder annBuilder;
+	private ParameterBuilder parBuilder;
+	private MiscUtils miscUtils;
+
+	private String suffix;
+	private String serSuffix;
+	private String classesPrefix;
+	private String name;
 
 	private boolean pagination;
 
+	ControllerGenerator(CodeGenerator codeGenerator, String suffix, String serSuffix, String classesPrefix) {
 
-	public ControllerGenerator(CodeGenerator codeGenerator) {
-
-		this.codeGenerator = codeGenerator;
+		this.eleUtils = codeGenerator.eleUtils;
+		this.annBuilder = codeGenerator.annBuilder;
+		this.parBuilder = codeGenerator.parBuilder;
+		this.miscUtils = codeGenerator.miscUtils;
+		this.suffix = suffix;
+		this.serSuffix = serSuffix;
+		this.classesPrefix = classesPrefix;
 	}
 
-	public TypeSpec generate(String prefix, Filter filter, boolean pagination, String endpoint) {
+	TypeSpec generate(String name, CRUD crud, String endpoint) {
 
-		this.pagination = pagination;
+		this.pagination = crud.pagination();
+		this.name = name;
 
 		MethodSpec one = MethodSpec.methodBuilder("one")
-			.addAnnotation(this.codeGenerator.annUtils.getMapping("{id}"))
-			.addParameter(this.codeGenerator.eleUtils.elementIdPathParam())
+			.addAnnotation(this.annBuilder.getMapping("{id}"))
+			.addParameter(this.eleUtils.elementIdPathParam())
 			.addStatement("return this.service.one(id)")
 			.returns(ResponseEntity.class)
 			.build();
 
-		MethodSpec all = filter.fields().length > 0 ? filterableAll(filter) : simpleAll();
+		MethodSpec all = crud.filter().fields().length > 0 ? filterableAll(crud.filter()) : simpleAll();
 
 		MethodSpec save = MethodSpec.methodBuilder("save")
-			.addAnnotation(this.codeGenerator.annUtils.postMapping(""))
-			.addParameter(this.codeGenerator.eleUtils.elementReqBodyParam())
+			.addAnnotation(this.annBuilder.postMapping(""))
+			.addParameter(this.eleUtils.elementReqBodyParam())
 			.addStatement("return this.service.save(entity)")
 			.returns(ResponseEntity.class)
 			.build();
 
 		MethodSpec delete = MethodSpec.methodBuilder("delete")
-			.addAnnotation(this.codeGenerator.annUtils.deleteMapping("{id}"))
-			.addParameter(this.codeGenerator.eleUtils.elementIdPathParam())
+			.addAnnotation(this.annBuilder.deleteMapping("{id}"))
+			.addParameter(this.eleUtils.elementIdPathParam())
 			.addStatement("return this.service.delete(id)")
 			.returns(ResponseEntity.class)
 			.build();
 
-		return TypeSpec.classBuilder(prefix + this.codeGenerator.conSuffix())
+		return TypeSpec.classBuilder(this.classesPrefix + name + this.suffix)
 			.addModifiers(Modifier.PUBLIC)
 			.addAnnotation(RestController.class)
-			.addAnnotation(this.codeGenerator.annUtils.requestMapping("/" + endpoint))
-			.addField(this.codeGenerator.autowire("service", prefix + this.codeGenerator.serSuffix()))
+			.addAnnotation(this.annBuilder.requestMapping("/" + endpoint))
+			.addField(this.miscUtils.autowire("service",
+				serviceClassName()))
 			.addMethod(all)
 			.addMethod(one)
 			.addMethod(save)
@@ -65,7 +85,7 @@ public class ControllerGenerator {
 	private MethodSpec simpleAll() {
 
 		MethodSpec.Builder builder = MethodSpec.methodBuilder("all")
-			.addAnnotation(this.codeGenerator.annUtils.getMapping(""));
+			.addAnnotation(this.annBuilder.getMapping(""));
 
 		if (!this.pagination)
 			builder.addStatement("return $T.ok(this.service.all())", ResponseEntity.class);
@@ -85,13 +105,13 @@ public class ControllerGenerator {
 
 		if (fields.length == 1 && "*".equals(fields[0])) {
 
-			fields = codeGenerator.eleUtils
-				.getNamesWithoutAnnotationByKind(Transient.class, ElementKind.FIELD)
+			fields = this.eleUtils
+				.getNonTransientFieldsNames()
 				.toArray(new String[]{});
 		}
 
 		MethodSpec.Builder builder = MethodSpec.methodBuilder("allByFilter")
-			.addAnnotation(this.codeGenerator.annUtils.getMapping(""));
+			.addAnnotation(this.annBuilder.getMapping(""));
 
 		if (this.pagination)
 			addPageability(builder);
@@ -104,46 +124,57 @@ public class ControllerGenerator {
 
 	private String getReturn(String[] fields) {
 
-		String r = "return this.service.allByFilter(";
+		StringBuilder builder = new StringBuilder("return this.service.allByFilter(");
+
 		for (int i = 0; i < fields.length; i++) {
+
 			String field = fields[i];
-			r += field;
+			builder.append(field);
+
 			if (i < fields.length - 1)
-				r += ", ";
+				builder.append(", ");
 		}
 
 		if (this.pagination)
-			r += ", page, pageSize";
+			builder.append(", page, pageSize");
 
-		r += ")";
-		return r;
+		builder.append(")");
+		return builder.toString();
 	}
 
 	private void addPageability(MethodSpec.Builder builder) {
 
 		builder
 			.addParameter(
-				codeGenerator.parUtils.build("page", Integer.class,
-					codeGenerator.annUtils.requestParam(false)))
+				this.parBuilder.build(
+					"page",
+					Integer.class,
+					this.annBuilder.requestParam(false)))
 			.addParameter(
-				codeGenerator.parUtils.build("pageSize", Integer.class,
-					codeGenerator.annUtils.requestParam(false)));
+				this.parBuilder.build(
+					"pageSize",
+					Integer.class,
+					this.annBuilder.requestParam(false)));
 	}
 
 	private MethodSpec.Builder addArguments(MethodSpec.Builder builder, String[] fields) {
 
-		for(int i = 0; i < fields.length; i++) {
+		Arrays.stream(fields).forEach(field -> {
 
-			String param = fields[i];
-			String paramType = codeGenerator.eleUtils.getEnclosingElement(param).asType().toString();
+			TypeMirror fieldType = this.eleUtils.getEnclosedElement(field).asType();
 
 			builder.addParameter(
-				codeGenerator.parUtils.build(
-					param,
-					codeGenerator.getTypeName(paramType, ""),
-					codeGenerator.annUtils.requestParam( false)));
-		}
+				this.parBuilder.build(
+					field,
+					this.miscUtils.getTypeName(fieldType),
+					this.annBuilder.requestParam( false)));
+		});
 
 		return builder;
+	}
+
+	private String serviceClassName() {
+
+		return this.eleUtils.packageName() + "." + this.classesPrefix + this.name + this.serSuffix;
 	}
 }

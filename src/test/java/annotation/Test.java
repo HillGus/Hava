@@ -6,7 +6,7 @@ import hava.annotation.spring.annotations.CRUD;
 import hava.annotation.spring.annotations.Filter;
 
 @Entity
-@CRUD(filter = @Filter(fields = "*", likeType = Filter.LikeType.END))
+@CRUD(filter = @Filter(fields = "*", likeType = Filter.LikeType.NONE))
 public class Test {
 
   @Id
