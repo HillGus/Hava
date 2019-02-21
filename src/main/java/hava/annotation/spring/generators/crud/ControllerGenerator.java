@@ -1,10 +1,11 @@
-package hava.annotation.spring.generators;
+package hava.annotation.spring.generators.crud;
 
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeSpec;
 import hava.annotation.spring.annotations.CRUD;
 import hava.annotation.spring.annotations.Filter;
 import hava.annotation.spring.builders.AnnotationBuilder;
+import hava.annotation.spring.generators.CodeGenerator;
 import hava.annotation.spring.utils.ElementUtils;
 import hava.annotation.spring.builders.ParameterBuilder;
 import hava.annotation.spring.utils.MiscUtils;
@@ -30,7 +31,7 @@ public class ControllerGenerator {
 
 	private boolean pagination;
 
-	ControllerGenerator(CodeGenerator codeGenerator, String suffix, String serSuffix, String classesPrefix) {
+	public ControllerGenerator(CodeGenerator codeGenerator, String suffix, String serSuffix, String classesPrefix) {
 
 		this.eleUtils = codeGenerator.eleUtils;
 		this.annBuilder = codeGenerator.annBuilder;
@@ -41,7 +42,7 @@ public class ControllerGenerator {
 		this.classesPrefix = classesPrefix;
 	}
 
-	TypeSpec generate(String name, CRUD crud, String endpoint) {
+	public TypeSpec generate(String name, CRUD crud, String endpoint) {
 
 		this.pagination = crud.pagination();
 		this.name = name;

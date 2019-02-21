@@ -1,10 +1,11 @@
-package hava.annotation.spring.generators;
+package hava.annotation.spring.generators.crud;
 
 import com.squareup.javapoet.*;
 import hava.annotation.spring.annotations.CRUD;
 import hava.annotation.spring.annotations.Filter;
 import hava.annotation.spring.builders.AnnotationBuilder;
 import hava.annotation.spring.builders.ParameterBuilder;
+import hava.annotation.spring.generators.CodeGenerator;
 import hava.annotation.spring.utils.ElementUtils;
 import hava.annotation.spring.utils.MiscUtils;
 import org.springframework.data.domain.Page;
@@ -29,7 +30,7 @@ public class RepositoryGenerator {
 	private String suffix;
 	private String classesPrefix;
 
-	RepositoryGenerator(CodeGenerator codeGenerator, String suffix, String classesPrefix) {
+	public RepositoryGenerator(CodeGenerator codeGenerator, String suffix, String classesPrefix) {
 
 		this.eleUtils = codeGenerator.eleUtils;
 		this.miscUtils = codeGenerator.miscUtils;
@@ -39,7 +40,7 @@ public class RepositoryGenerator {
 		this.classesPrefix = classesPrefix;
 	}
 
-	TypeSpec generate(String prefix, CRUD crud) {
+	public TypeSpec generate(String prefix, CRUD crud) {
 
 		TypeSpec.Builder builder = TypeSpec.interfaceBuilder(this.classesPrefix + prefix + this.suffix)
 			.addModifiers(Modifier.PUBLIC)

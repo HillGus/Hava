@@ -1,6 +1,7 @@
 package hava.annotation.spring;
 
 import com.google.auto.service.AutoService;
+import hava.annotation.spring.annotations.Authentication;
 import hava.annotation.spring.annotations.CRUD;
 import hava.annotation.spring.annotations.HASConfiguration;
 import hava.annotation.spring.generators.CodeGenerator;
@@ -37,7 +38,7 @@ public class AnnotationProcessor extends AbstractProcessor {
     this.typeUtils = processingEnv.getTypeUtils();
     this.elementUtils = processingEnv.getElementUtils();
     
-    this.codeGenerator = new CodeGenerator(this.elementUtils, this.filer);
+    this.codeGenerator = new CodeGenerator(this.elementUtils, this.filer, this.typeUtils, this.messager);
   }
 
   @Override
@@ -69,6 +70,15 @@ public class AnnotationProcessor extends AbstractProcessor {
       this.codeGenerator.setClassesPrefix(config.classesPrefix());
     }
 
+    for (Element el : roundEnv.getElementsAnnotatedWith(Authentication.class)) {
+
+      Authentication auth = el.getAnnotation(Authentication.class);
+
+      String packageName = this.elementUtils.getPackageOf(el).getQualifiedName().toString();
+
+      this.codeGenerator.generateAuthClasses(auth, packageName);
+    }
+
     for (Element element : roundEnv.getElementsAnnotatedWith(CRUD.class)) {
 
       if (element.getKind() != ElementKind.CLASS) {
@@ -82,7 +92,7 @@ public class AnnotationProcessor extends AbstractProcessor {
       }
 
       try {
-        this.codeGenerator.generateClasses(element);
+        this.codeGenerator.generateCrudClasses(element);
       } catch (RuntimeException e) {
 
         e.printStackTrace();

@@ -12,10 +12,23 @@ public class MiscUtils {
 
 	public FieldSpec autowire(String fieldName, String typeName) {
 
+		String[] names = this.splitQualifiedName(typeName);
+
+		String packageName = names[0];
+		String objectName = names[1];
+
+		TypeName type = ClassName.get(packageName, objectName);
+
+		return FieldSpec.builder(type, fieldName)
+			.addAnnotation(Autowired.class).build();
+	}
+
+	public String[] splitQualifiedName(String qualifiedName) {
+
 		StringBuilder packageName = new StringBuilder();
 		String objectName = "";
 
-		String[] divisoes = typeName.split("\\.");
+		String[] divisoes = qualifiedName.split("\\.");
 		for (int i = 0; i < divisoes.length; i++) {
 
 			String div = divisoes[i];
@@ -29,10 +42,7 @@ public class MiscUtils {
 			}
 		}
 
-		TypeName type = ClassName.get(packageName.toString(), objectName);
-
-		return FieldSpec.builder(type, fieldName)
-			.addAnnotation(Autowired.class).build();
+		return new String[]{packageName.toString(), objectName};
 	}
 
 	public TypeName getTypeName(TypeMirror type) {

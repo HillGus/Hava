@@ -1,9 +1,10 @@
-package hava.annotation.spring.generators;
+package hava.annotation.spring.generators.crud;
 
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeSpec;
 import hava.annotation.spring.annotations.CRUD;
 import hava.annotation.spring.annotations.Filter;
+import hava.annotation.spring.generators.CodeGenerator;
 import hava.annotation.spring.utils.ElementUtils;
 import hava.annotation.spring.builders.ParameterBuilder;
 import hava.annotation.spring.utils.MiscUtils;
