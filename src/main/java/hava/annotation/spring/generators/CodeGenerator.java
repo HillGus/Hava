@@ -6,10 +6,7 @@ import hava.annotation.spring.annotations.CRUD;
 import hava.annotation.spring.annotations.HASConfiguration;
 import hava.annotation.spring.annotations.Suffixes;
 import hava.annotation.spring.builders.AnnotationBuilder;
-import hava.annotation.spring.generators.authentication.AuthenticationFilterGenerator;
-import hava.annotation.spring.generators.authentication.AuthorizationFilterGenerator;
-import hava.annotation.spring.generators.authentication.UtilGenerator;
-import hava.annotation.spring.generators.authentication.WebConfigGenerator;
+import hava.annotation.spring.generators.authentication.*;
 import hava.annotation.spring.generators.crud.ControllerGenerator;
 import hava.annotation.spring.generators.crud.RepositoryGenerator;
 import hava.annotation.spring.generators.crud.ServiceGenerator;
@@ -82,7 +79,7 @@ public class CodeGenerator {
 		}
 
 		boolean useEncoderGetInstance = hasGetInstanceMethod(encoderType);
-		verifyEncoderType(encoderType);
+		verifyEncoderType(encoderType, useEncoderGetInstance);
 
 		String secret = auth.secret();
 		SignatureAlgorithm algorithm = auth.algorithm();
@@ -92,11 +89,17 @@ public class CodeGenerator {
 		UtilGenerator utilGenerator = new UtilGenerator(this, this.classesPrefix);
 		AuthenticationFilterGenerator authFilterGenerator = new AuthenticationFilterGenerator(this, this.classesPrefix, packageName);
 		AuthorizationFilterGenerator authoFilterGenerator = new AuthorizationFilterGenerator(this, this.classesPrefix, packageName);
+		AuthenticationConfiguratorGenerator authConfigGenerator = new AuthenticationConfiguratorGenerator(this, this.classesPrefix, packageName);
 
 
 		save(
-			webConfigGenerator.generate(encoderType, useEncoderGetInstance),
-			packageName);
+			authConfigGenerator.generate(encoderType, useEncoderGetInstance),
+			packageName
+		);
+
+		/*save(
+			webConfigGenerator.generate(encoderType, useEncoderGetInstance, order),
+			packageName);*/
 
 		save(
 			utilGenerator.generate(secret, expiration, algorithm),
@@ -138,7 +141,7 @@ public class CodeGenerator {
 		return result;
 	}
 
-	public void verifyEncoderType(TypeMirror type) {
+	public void verifyEncoderType(TypeMirror type, boolean haveGetInstance) {
 
 		Element encoderEle = this.typeUtils.asElement(type);
 
@@ -153,8 +156,8 @@ public class CodeGenerator {
 			}
 		}
 
-		if (!noArgsConstructor)
-			throw new RuntimeException("A class used as encoder for @Authentication must have a constructor with no arguments");
+		if (!noArgsConstructor && !haveGetInstance)
+			throw new RuntimeException("A class used as encoder for @Authentication must have a constructor with no arguments or a public static getInstance method");
 
 		List<? extends TypeMirror> encoderSuperClasses = this.typeUtils.directSupertypes(type);
 		String passwordEncoderPath = "org.springframework.security.crypto.password.PasswordEncoder";

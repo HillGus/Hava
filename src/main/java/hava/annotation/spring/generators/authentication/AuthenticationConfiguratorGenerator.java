@@ -1,25 +1,20 @@
 package hava.annotation.spring.generators.authentication;
 
 import com.squareup.javapoet.ClassName;
-import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeSpec;
 import hava.annotation.spring.builders.AnnotationBuilder;
 import hava.annotation.spring.builders.ParameterBuilder;
+import hava.annotation.spring.configurators.AuthenticationConfigurator;
 import hava.annotation.spring.generators.CodeGenerator;
 import hava.annotation.spring.utils.MiscUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
-import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
 import javax.lang.model.element.Modifier;
 import javax.lang.model.type.TypeMirror;
 
-public class WebConfigGenerator {
-
+public class AuthenticationConfiguratorGenerator {
 
 	private ParameterBuilder parBuilder;
 	private AnnotationBuilder annBuilder;
@@ -29,11 +24,11 @@ public class WebConfigGenerator {
 	private String packageName;
 
 	private final String httpSecurityPackage = "org.springframework.security.config.annotation.web.builders";
-	private final String webConfigPackage = "org.springframework.security.config.annotation.web.configuration";
 	private final String authBuildersPackage = "org.springframework.security.config.annotation.authentication.builders";
+	private final String authPackage = "org.springframework.security.authentication";
 	private final String securityUserDetailsPackage = "org.springframework.security.core.userdetails";
 
-	public WebConfigGenerator(CodeGenerator codeGenerator, String classesPrefix, String packageName) {
+	public AuthenticationConfiguratorGenerator(CodeGenerator codeGenerator, String classesPrefix, String packageName) {
 
 		this.miscUtils = codeGenerator.miscUtils;
 		this.parBuilder = codeGenerator.parBuilder;
@@ -42,21 +37,25 @@ public class WebConfigGenerator {
 		this.packageName = packageName;
 	}
 
-	public TypeSpec generate(TypeMirror passwordEncoder, boolean useEncoderGetInstance, int order) {
+	public TypeSpec generate(TypeMirror passwordEncoder, boolean useEncoderGetInstance) {
 
 		MethodSpec configureHttp = MethodSpec.methodBuilder("configure")
 			.addAnnotation(Override.class)
-			.addModifiers(Modifier.PROTECTED)
+			.addModifiers(Modifier.PUBLIC)
 			.addException(Exception.class)
 			.addParameter(
 				this.parBuilder.build("http",
 					ClassName.get(httpSecurityPackage, "HttpSecurity")))
+			.addParameter(
+				this.parBuilder.build("authManager",
+					ClassName.get(authPackage, "AuthenticationManager"))
+			)
 			.addStatement("http.cors().and().csrf().disable()")
 			.addStatement(
-				"http.addFilter(new $L(authenticationManager(), jwtUtil))",
+				"http.addFilter(new $L(authManager, jwtUtil))",
 				ClassName.get(this.packageName, this.classesPrefix + "JWTAuthenticationFilter"))
 			.addStatement(
-				"http.addFilter(new $L(authenticationManager(), jwtUtil, userDetailsService))",
+				"http.addFilter(new $L(authManager, jwtUtil, userDetailsService))",
 				ClassName.get(this.packageName, this.classesPrefix + "JWTAuthorizationFilter"))
 			.addStatement(
 				"http.authorizeRequests().antMatchers(\"/login\").permitAll()",
@@ -65,7 +64,7 @@ public class WebConfigGenerator {
 
 		MethodSpec configureAuth = MethodSpec.methodBuilder("configure")
 			.addAnnotation(Override.class)
-			.addModifiers(Modifier.PROTECTED)
+			.addModifiers(Modifier.PUBLIC)
 			.addException(Exception.class)
 			.addParameter(
 				this.parBuilder.build("auth",
@@ -75,11 +74,9 @@ public class WebConfigGenerator {
 
 		MethodSpec getPasswordEncoder = generateGetPasswordEncoder(passwordEncoder, useEncoderGetInstance);
 
-		TypeSpec classe = TypeSpec.classBuilder(this.classesPrefix + "WebSecurityConfigurer")
-			.addAnnotation(Configuration.class)
-			.addAnnotation(ClassName.get(this.webConfigPackage, "EnableWebSecurity"))
-			.addAnnotation(this.annBuilder.build(Order.class, "value", order))
-			.superclass(ClassName.get(this.webConfigPackage, "WebSecurityConfigurerAdapter"))
+		TypeSpec classe = TypeSpec.classBuilder(this.classesPrefix + "AuthenticationConfiguratorImpl")
+			.addAnnotation(Service.class)
+			.addSuperinterface(AuthenticationConfigurator.class)
 			.addField(this.miscUtils.autowire("jwtUtil", this.getUtilCanonicalName()))
 			.addField(this.miscUtils.autowire("userDetailsService",
 				ClassName.get(this.securityUserDetailsPackage, "UserDetailsService").toString()))

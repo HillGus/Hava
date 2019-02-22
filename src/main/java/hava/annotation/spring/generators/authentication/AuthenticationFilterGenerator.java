@@ -7,9 +7,9 @@ import com.squareup.javapoet.TypeSpec;
 import hava.annotation.spring.builders.ParameterBuilder;
 import hava.annotation.spring.generators.CodeGenerator;
 import hava.annotation.spring.utils.MiscUtils;
+import org.json.JSONObject;
 
 import javax.lang.model.element.Modifier;
-import javax.lang.model.type.TypeMirror;
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
@@ -55,8 +55,19 @@ public class AuthenticationFilterGenerator {
 			.addException(ClassName.get(this.securityCorePackage, "AuthenticationException"))
 			.addAnnotation(Override.class)
 			.addModifiers(Modifier.PUBLIC)
-			.addStatement("$T username = request.getHeader($S)", String.class, "username")
-			.addStatement("$T password = request.getHeader($S)", String.class, "password")
+			.addStatement("$T jsonString = \"\"", String.class)
+			.addStatement("$T line = \"\"", String.class)
+			.beginControlFlow("try")
+				.beginControlFlow("while ((line = request.getReader().readLine()) != null)")
+					.addStatement("jsonString += line")
+				.endControlFlow()
+			.nextControlFlow("catch (IOException e)")
+				.addStatement("throw new $T(e.getMessage())", RuntimeException.class)
+			.endControlFlow()
+			.addStatement("$T jsonObj = new $T(jsonString)",
+				JSONObject.class, JSONObject.class)
+			.addStatement("$T username = jsonObj.get($S).toString()", String.class, "username")
+			.addStatement("$T password = jsonObj.get($S).toString()", String.class, "password")
 			.addStatement("$T authToken = new $T(username, password, new $T())",
 				ClassName.get(this.securityAuthPackage, "UsernamePasswordAuthenticationToken"),
 				ClassName.get(this.securityAuthPackage, "UsernamePasswordAuthenticationToken"),
@@ -106,8 +117,8 @@ public class AuthenticationFilterGenerator {
 			.addStatement("return \""
 				+ "{\\\"timestamp\\\": \" + new $T().getTime() + \", "
 				+ "\\\"status\\\": \" + $T.SC_OK + \", "
-				+ "\\\"token\\\": \" + token + \", "
-				+ "\\\"message\\\", \\\"Authenticated successfully\\\"}\"", Date.class, HttpServletResponse.class)
+				+ "\\\"token\\\": \\\"\" + token + \"\\\", "
+				+ "\\\"message\\\": \\\"Authenticated successfully\\\"}\"", Date.class, HttpServletResponse.class)
 			.returns(String.class)
 			.build();
 
@@ -118,7 +129,7 @@ public class AuthenticationFilterGenerator {
 				+ "{\\\"timestamp\\\": \" + new $T().getTime() + \", "
 				+ "\\\"status\\\": \" + $T.SC_UNAUTHORIZED + \", "
 				+ "\\\"error\\\": \\\"Could not authenticate\\\", "
-				+ "\\\"message\\\", \" + message + \"}\"", Date.class, HttpServletResponse.class)
+				+ "\\\"message\\\": \" + message + \"}\"", Date.class, HttpServletResponse.class)
 			.returns(String.class)
 			.build();
 

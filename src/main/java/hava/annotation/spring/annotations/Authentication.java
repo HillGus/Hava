@@ -4,8 +4,8 @@ import io.jsonwebtoken.SignatureAlgorithm;
 
 public @interface Authentication {
 
-	public String secret();
-	public Class<?> encoder();
-	public long expiration() default 3600000L;
-	public SignatureAlgorithm algorithm() default SignatureAlgorithm.HS512;
+	String secret();
+	Class<?> encoder();
+	long expiration() default 3600000L;
+	SignatureAlgorithm algorithm() default SignatureAlgorithm.HS512;
 }

@@ -13,7 +13,7 @@ public class AnnotationBuilder {
 		return AnnotationSpec.builder(annotationClass).build();
 	}
 
-	public AnnotationSpec build(Class<? extends Annotation> annotationClass, String value) {
+	public AnnotationSpec build(Class<? extends Annotation> annotationClass, Object value) {
 
 		return this.build(annotationClass, "value", value);
 	}
