@@ -1,29 +1,26 @@
 package hava.annotation.spring.generators.crud;
 
-import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.TypeSpec;
-import hava.annotation.spring.annotations.CRUD;
-import hava.annotation.spring.annotations.Filter;
-import hava.annotation.spring.generators.CodeGenerator;
-import hava.annotation.spring.utils.ElementUtils;
-import hava.annotation.spring.builders.ParameterBuilder;
-import hava.annotation.spring.utils.MiscUtils;
+import java.util.Arrays;
+import javax.lang.model.element.Modifier;
+import javax.lang.model.type.TypeMirror;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.FieldSpec;
+import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.TypeSpec;
+import hava.annotation.spring.annotations.CRUD;
+import hava.annotation.spring.annotations.Filter;
+import hava.annotation.spring.generators.CodeGenerator;
+import hava.annotation.spring.generators.Generator;
+import hava.annotation.spring.generators.args.TwoArgs;
 
-import javax.lang.model.element.Modifier;
-import javax.lang.model.type.TypeMirror;
-import java.util.Arrays;
+public class ServiceGenerator extends Generator<TwoArgs<String, CRUD>> {
 
-public class ServiceGenerator {
-
-
-	private ElementUtils eleUtils;
-	private MiscUtils miscUtils;
-	private ParameterBuilder parBuilder;
 
 	private String suffix;
 	private String repSuffix;
@@ -34,16 +31,18 @@ public class ServiceGenerator {
 
 	public ServiceGenerator(CodeGenerator codeGenerator, String suffix, String repSuffix, String classesPrefix) {
 
-		this.eleUtils = codeGenerator.eleUtils;
-		this.miscUtils = codeGenerator.miscUtils;
-		this.parBuilder = codeGenerator.parBuilder;
+		super(codeGenerator);
+		
 		this.suffix = suffix;
 		this.repSuffix = repSuffix;
 		this.classesPrefix = classesPrefix;
 	}
 
-	public TypeSpec generate(String name, CRUD crud) {
+	public TypeSpec generate(TwoArgs<String, CRUD> args) {
 
+	    String name = args.one();
+	    CRUD crud = args.two();
+	  
 		this.pagination = crud.pagination();
 		this.name = name;
 
@@ -65,12 +64,16 @@ public class ServiceGenerator {
 			.addStatement("return new $T($T.NO_CONTENT)", ResponseEntity.class, HttpStatus.class)
 			.build();
 
+		String repositoryClassName = this.classesPrefix + this.name + this.repSuffix;
+		
 		return TypeSpec.classBuilder(this.classesPrefix + name + this.suffix)
 			.addModifiers(Modifier.PUBLIC)
-			.addField(
-				this.miscUtils.autowire("repository",
-					repositoryClassName()))
 			.addAnnotation(Component.class)
+			.addField(
+			    FieldSpec.builder(
+			        ClassName.get("", repositoryClassName), "repository")
+			        .addAnnotation(Autowired.class)
+			        .build())
 			.addMethod(save)
 			.addMethod(one)
 			.addMethod(all)
@@ -142,9 +145,9 @@ public class ServiceGenerator {
 			TypeMirror fieldType = this.eleUtils.getEnclosedElement(field).asType();
 
 			builder.addParameter(
-				this.parBuilder.build(
-					field,
-					this.miscUtils.getTypeName(fieldType)));
+			    this.parBuilder.name(field)
+			    .type(fieldType)
+			    .build());
 			});
 
 		return builder;
@@ -152,8 +155,8 @@ public class ServiceGenerator {
 
 	private void addPageability(MethodSpec.Builder builder) {
 
-		builder.addParameter(this.parBuilder.build("page", Integer.class))
-			.addParameter(this.parBuilder.build("pageSize", Integer.class));
+		builder.addParameter(this.parBuilder.name("page").type(Integer.class).build())
+			.addParameter(this.parBuilder.name("pageSize").type(Integer.class).build());
 
 		builder.addStatement("$T pageable", Pageable.class)
 			.beginControlFlow("if (page == null || pageSize == null)")
@@ -169,10 +172,5 @@ public class ServiceGenerator {
 		return MethodSpec.methodBuilder(name)
 			.addModifiers(Modifier.PUBLIC)
 			.returns(ResponseEntity.class);
-	}
-
-	private String repositoryClassName() {
-
-		return this.eleUtils.packageName() + "." + this.classesPrefix + this.name + this.repSuffix;
 	}
 }

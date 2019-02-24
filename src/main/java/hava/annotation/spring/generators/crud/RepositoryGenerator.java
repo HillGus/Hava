@@ -3,11 +3,9 @@ package hava.annotation.spring.generators.crud;
 import com.squareup.javapoet.*;
 import hava.annotation.spring.annotations.CRUD;
 import hava.annotation.spring.annotations.Filter;
-import hava.annotation.spring.builders.AnnotationBuilder;
-import hava.annotation.spring.builders.ParameterBuilder;
 import hava.annotation.spring.generators.CodeGenerator;
-import hava.annotation.spring.utils.ElementUtils;
-import hava.annotation.spring.utils.MiscUtils;
+import hava.annotation.spring.generators.Generator;
+import hava.annotation.spring.generators.args.TwoArgs;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -20,29 +18,25 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class RepositoryGenerator {
-
-	private ElementUtils eleUtils;
-	private MiscUtils miscUtils;
-	private AnnotationBuilder annBuilder;
-	private ParameterBuilder parBuilder;
+public class RepositoryGenerator extends Generator<TwoArgs<String, CRUD>> {
 
 	private String suffix;
 	private String classesPrefix;
 
 	public RepositoryGenerator(CodeGenerator codeGenerator, String suffix, String classesPrefix) {
 
-		this.eleUtils = codeGenerator.eleUtils;
-		this.miscUtils = codeGenerator.miscUtils;
-		this.annBuilder = codeGenerator.annBuilder;
-		this.parBuilder = codeGenerator.parBuilder;
+		super(codeGenerator);
+		
 		this.suffix = suffix;
 		this.classesPrefix = classesPrefix;
 	}
 
-	public TypeSpec generate(String prefix, CRUD crud) {
+	public TypeSpec generate(TwoArgs<String, CRUD> args) {
 
-		TypeSpec.Builder builder = TypeSpec.interfaceBuilder(this.classesPrefix + prefix + this.suffix)
+	    String name = args.one();
+	    CRUD crud = args.two();
+	  
+		TypeSpec.Builder builder = TypeSpec.interfaceBuilder(this.classesPrefix + name + this.suffix)
 			.addModifiers(Modifier.PUBLIC)
 			.addSuperinterface(
 				getParameterizedTypeName(
@@ -90,7 +84,9 @@ public class RepositoryGenerator {
 						Page.class,
 						eleUtils.elementTypeStr()))
 				.addParameter(
-				parBuilder.build("pageable", Pageable.class));
+				parBuilder.name("pageable")
+				    .type(Pageable.class)
+				    .build());
 		}
 
 		return builder.build();
@@ -149,11 +145,10 @@ public class RepositoryGenerator {
 			TypeMirror fieldType = eleUtils.getEnclosedElement(field).asType();
 
 			builder.addParameter(
-				parBuilder.build(
-					field,
-					this.miscUtils.getTypeName(fieldType),
-					annBuilder.build(Param.class, field))
-			);
+			    this.parBuilder.name(field)
+			        .type(fieldType)
+			        .annotation(this.annBuilder.build(Param.class, field))
+			        .build());
 			});
 
 		return builder;

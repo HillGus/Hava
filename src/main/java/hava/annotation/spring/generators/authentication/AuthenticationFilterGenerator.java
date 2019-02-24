@@ -1,52 +1,56 @@
 package hava.annotation.spring.generators.authentication;
 
-import com.squareup.javapoet.ClassName;
-import com.squareup.javapoet.FieldSpec;
-import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.TypeSpec;
-import hava.annotation.spring.builders.ParameterBuilder;
-import hava.annotation.spring.generators.CodeGenerator;
-import hava.annotation.spring.utils.MiscUtils;
-import org.json.JSONObject;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Date;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.type.TypeMirror;
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Date;
+import org.json.JSONObject;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.FieldSpec;
+import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.TypeSpec;
+import hava.annotation.spring.generators.CodeGenerator;
+import hava.annotation.spring.generators.Generator;
+import hava.annotation.spring.generators.args.TwoArgs;
 
-public class AuthenticationFilterGenerator {
+public class AuthenticationFilterGenerator extends Generator<TwoArgs<TypeMirror, TypeMirror>> {
 
-  private ParameterBuilder parBuilder;
-  private MiscUtils miscUtils;
 
   private String classesPrefix;
-  private String packageName;
 
-  private final String securityAuthPackage = "org.springframework.security.authentication";
-  private final String securityCorePackage = "org.springframework.security.core";
-  private final String webAuthPackage = "org.springframework.security.web.authentication";
+  public AuthenticationFilterGenerator(CodeGenerator codeGenerator, String classesPrefix) {
 
-  public AuthenticationFilterGenerator(CodeGenerator codeGenerator, String classesPrefix,
-      String packageName) {
-
-    this.miscUtils = codeGenerator.miscUtils;
-    this.parBuilder = codeGenerator.parBuilder;
+    super(codeGenerator);
+    
     this.classesPrefix = classesPrefix;
-    this.packageName = packageName;
   }
 
-  public TypeSpec generate(TypeMirror successHandler, TypeMirror failureHandler) {
+  public TypeSpec generate(TwoArgs<TypeMirror, TypeMirror> args) {
 
+    TypeMirror successHandler = args.one();
+    TypeMirror failureHandler = args.two();
+    
     MethodSpec.Builder constructorBuilder = MethodSpec.constructorBuilder()
-        .addParameter(this.parBuilder.build("authManager",
-            ClassName.get(this.securityAuthPackage, "AuthenticationManager")))
-        .addParameter(this.parBuilder.build("jwtUtil",
-            ClassName.get(this.packageName, this.classesPrefix + "JWTUtil")))
-        .addStatement("this.authManager = authManager").addStatement("this.jwtUtil = jwtUtil");
+        .addParameter(
+            this.parBuilder.name("authManager")
+                .type(AuthenticationManager.class)
+                .build())
+        .addParameter(
+            this.parBuilder.name("jwtUtil")
+                .type(ClassName.get("", this.classesPrefix + "JWTUtil"))
+                .build())
+        .addStatement("this.authManager = authManager")
+        .addStatement("this.jwtUtil = jwtUtil");
 
     if (!"java.lang.Void".equals(successHandler.toString()))
       constructorBuilder.addStatement("setAuthenticationSuccessHandler(new $T())", successHandler);
@@ -57,45 +61,69 @@ public class AuthenticationFilterGenerator {
     MethodSpec constructor = constructorBuilder.build();
 
     MethodSpec attemptAuthentication = MethodSpec.methodBuilder("attemptAuthentication")
-        .addParameter(this.parBuilder.build("request", HttpServletRequest.class))
-        .addParameter(this.parBuilder.build("response", HttpServletResponse.class))
-        .addException(ClassName.get(this.securityCorePackage, "AuthenticationException"))
+        .addParameter(
+            this.parBuilder.name("request")
+                .type(HttpServletRequest.class)
+                .build())
+        .addParameter(
+            this.parBuilder.name("response")
+                .type(HttpServletResponse.class)
+                .build())
+        .addException(AuthenticationException.class)
         .addAnnotation(Override.class).addModifiers(Modifier.PUBLIC)
         .addStatement("$T jsonString = \"\"", String.class)
-        .addStatement("$T line = \"\"", String.class).beginControlFlow("try")
-        .beginControlFlow("while ((line = request.getReader().readLine()) != null)")
-        .addStatement("jsonString += line").endControlFlow()
+        .addStatement("$T line = \"\"", String.class)
+        .beginControlFlow("try")
+            .beginControlFlow("while ((line = request.getReader().readLine()) != null)")
+                .addStatement("jsonString += line")
+            .endControlFlow()
         .nextControlFlow("catch ($T e)", IOException.class)
-        .addStatement("throw new $T(e.getMessage())", RuntimeException.class).endControlFlow()
+            .addStatement("throw new $T(e.getMessage())", RuntimeException.class)
+        .endControlFlow()
         .addStatement("$T jsonObj = new $T(jsonString)", JSONObject.class, JSONObject.class)
         .addStatement("$T username = jsonObj.get($S).toString()", String.class, "username")
         .addStatement("$T password = jsonObj.get($S).toString()", String.class, "password")
         .addStatement("$T authToken = new $T(username, password, new $T())",
-            ClassName.get(this.securityAuthPackage, "UsernamePasswordAuthenticationToken"),
-            ClassName.get(this.securityAuthPackage, "UsernamePasswordAuthenticationToken"),
+            UsernamePasswordAuthenticationToken.class,
+            UsernamePasswordAuthenticationToken.class,
             ArrayList.class)
         .addStatement("return this.authManager.authenticate(authToken)")
-        .returns(ClassName.get(this.securityCorePackage, "Authentication")).build();
+        .returns(Authentication.class)
+        .build();
 
     MethodSpec successfulAuthentication = null;
 
     if ("java.lang.Void".equals(successHandler.toString()))
       successfulAuthentication = MethodSpec.methodBuilder("successfulAuthentication")
-          .addAnnotation(Override.class).addModifiers(Modifier.PROTECTED)
-          .addException(IOException.class).addException(ServletException.class)
-          .addParameter(this.parBuilder.build("request", HttpServletRequest.class))
-          .addParameter(this.parBuilder.build("response", HttpServletResponse.class))
-          .addParameter(this.parBuilder.build("chain", FilterChain.class))
-          .addParameter(this.parBuilder.build("authResult",
-              ClassName.get(this.securityCorePackage, "Authentication")))
+          .addAnnotation(Override.class)
+          .addModifiers(Modifier.PROTECTED)
+          .addException(IOException.class)
+          .addException(ServletException.class)
+          .addParameter(
+              this.parBuilder.name("request")
+                  .type(HttpServletRequest.class)
+                  .build())
+          .addParameter(
+              this.parBuilder.name("response")
+                  .type(HttpServletResponse.class)
+                  .build())
+          .addParameter(
+              this.parBuilder.name("chain")
+                  .type(FilterChain.class)
+                  .build())
+          .addParameter(
+              this.parBuilder.name("authResult")
+                  .type(Authentication.class)
+                  .build())
           .addStatement("$T username = authResult.getName()", String.class)
           .beginControlFlow("if (username != null && !username.isEmpty())")
-          .addStatement("$T token = this.jwtUtil.generateToken(username)", String.class)
-          .addStatement("response.setStatus($T.SC_OK)", HttpServletResponse.class)
-          .addStatement("response.setContentType($S)", "application/json")
-          .addStatement("response.setCharacterEncoding($S)", "UTF-8")
-          .addStatement("response.getWriter().append(this.createSuccessBody(token))")
-          .endControlFlow().build();
+              .addStatement("$T token = this.jwtUtil.generateToken(username)", String.class)
+              .addStatement("response.setStatus($T.SC_OK)", HttpServletResponse.class)
+              .addStatement("response.setContentType($S)", "application/json")
+              .addStatement("response.setCharacterEncoding($S)", "UTF-8")
+              .addStatement("response.getWriter().append(this.createSuccessBody(token))")
+          .endControlFlow()
+          .build();
 
     MethodSpec unsuccessfulAuthentication = null;
 
@@ -103,10 +131,18 @@ public class AuthenticationFilterGenerator {
       unsuccessfulAuthentication = MethodSpec.methodBuilder("unsuccessfulAuthentication")
           .addAnnotation(Override.class).addModifiers(Modifier.PROTECTED)
           .addException(IOException.class).addException(ServletException.class)
-          .addParameter(this.parBuilder.build("request", HttpServletRequest.class))
-          .addParameter(this.parBuilder.build("response", HttpServletResponse.class))
-          .addParameter(this.parBuilder.build("e",
-              ClassName.get(this.securityCorePackage, "AuthenticationException")))
+          .addParameter(
+              this.parBuilder.name("request")
+                  .type(HttpServletRequest.class)
+                  .build())
+          .addParameter(
+              this.parBuilder.name("response")
+                  .type(HttpServletResponse.class)
+                  .build())
+          .addParameter(
+              this.parBuilder.name("e")
+                  .type(AuthenticationException.class)
+                  .build())
           .addStatement("response.setStatus($T.SC_UNAUTHORIZED)", HttpServletResponse.class)
           .addStatement("response.setContentType($S)", "application/json")
           .addStatement("response.setCharacterEncoding($S)", "UTF-8")
@@ -114,33 +150,53 @@ public class AuthenticationFilterGenerator {
           .build();
 
     MethodSpec createSuccessBody = MethodSpec.methodBuilder("createSuccessBody")
-        .addModifiers(Modifier.PRIVATE).addParameter(this.parBuilder.build("token", String.class))
-        .addStatement("return \"" + "{\\\"timestamp\\\": \" + new $T().getTime() + \", "
-            + "\\\"status\\\": \" + $T.SC_OK + \", " + "\\\"token\\\": \\\"\" + token + \"\\\", "
-            + "\\\"message\\\": \\\"Authenticated successfully\\\"}\"", Date.class,
-            HttpServletResponse.class)
+        .addModifiers(Modifier.PRIVATE)
+        .addParameter(
+            this.parBuilder.name("token")
+                .type(String.class)
+                .build())
+        .addStatement("return \"" 
+            + "{\\\"timestamp\\\": \" + new $T().getTime() + \", "
+            + "\\\"status\\\": \" + $T.SC_OK + \", " 
+            + "\\\"token\\\": \\\"\" + token + \"\\\", "
+            + "\\\"message\\\": \\\"Authenticated successfully\\\"}\"", 
+            Date.class, HttpServletResponse.class)
         .returns(String.class).build();
 
     MethodSpec createUnsuccessBody = MethodSpec.methodBuilder("createUnsuccessBody")
-        .addModifiers(Modifier.PRIVATE).addParameter(this.parBuilder.build("message", String.class))
-        .addStatement("return \"" + "{\\\"timestamp\\\": \" + new $T().getTime() + \", "
+        .addModifiers(Modifier.PRIVATE)
+        .addParameter(
+            this.parBuilder.name("message")
+                .type(String.class)
+                .build())
+        .addStatement("return \"" 
+            + "{\\\"timestamp\\\": \" + new $T().getTime() + \", "
             + "\\\"status\\\": \" + $T.SC_UNAUTHORIZED + \", "
             + "\\\"error\\\": \\\"Could not authenticate\\\", "
-            + "\\\"message\\\": \" + message + \"}\"", Date.class, HttpServletResponse.class)
+            + "\\\"message\\\": \" + message + \"}\"", 
+            Date.class, HttpServletResponse.class)
         .returns(String.class).build();
 
     FieldSpec jwtUtilField =
-        FieldSpec.builder(ClassName.get(this.packageName, this.classesPrefix + "JWTUtil"),
-            "jwtUtil", Modifier.PRIVATE).build();
+        FieldSpec.builder(
+            ClassName.get("", this.classesPrefix + "JWTUtil"),
+            "jwtUtil", Modifier.PRIVATE)
+        .build();
 
-    FieldSpec authManagerField =
-        FieldSpec.builder(ClassName.get(this.securityAuthPackage, "AuthenticationManager"),
-            "authManager", Modifier.PRIVATE).build();
+    FieldSpec authManagerField = FieldSpec.builder(
+            AuthenticationManager.class,
+            "authManager", Modifier.PRIVATE)
+        .build();
 
-    TypeSpec.Builder builder = TypeSpec.classBuilder(this.classesPrefix + "JWTAuthenticationFilter")
-        .superclass(ClassName.get(this.webAuthPackage, "UsernamePasswordAuthenticationFilter"))
-        .addMethod(constructor).addMethod(attemptAuthentication).addMethod(createSuccessBody)
-        .addMethod(createUnsuccessBody).addField(jwtUtilField).addField(authManagerField);
+    TypeSpec.Builder builder = TypeSpec.classBuilder(
+            this.classesPrefix + "JWTAuthenticationFilter")
+        .superclass(UsernamePasswordAuthenticationFilter.class)
+        .addMethod(constructor)
+        .addMethod(attemptAuthentication)
+        .addMethod(createSuccessBody)
+        .addMethod(createUnsuccessBody)
+        .addField(jwtUtilField)
+        .addField(authManagerField);
 
     if ("java.lang.Void".equals(successHandler.toString()))
       builder.addMethod(successfulAuthentication);

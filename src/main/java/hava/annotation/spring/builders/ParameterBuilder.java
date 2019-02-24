@@ -6,48 +6,88 @@ import com.squareup.javapoet.TypeName;
 import hava.annotation.spring.utils.MiscUtils;
 
 import java.lang.annotation.Annotation;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
+import javax.lang.model.element.Modifier;
+import javax.lang.model.type.TypeMirror;
 
 public class ParameterBuilder {
 
 
 	private MiscUtils miscUtils = new MiscUtils();
+	
+	private String name;
+	private TypeName type;
+	private List<AnnotationSpec> annotations = new ArrayList<>();
+	private List<Modifier> modifiers = new ArrayList<>();
 
-
-	public ParameterSpec build(String paramName, Class<?> type) {
-
-		return this.build(paramName, this.miscUtils.getTypeName(type));
+	
+	public ParameterBuilder name(String name) {
+	  
+	  this.name = name;
+	  return this;
 	}
-
-	public ParameterSpec build(String paramName, Class<?> type, AnnotationSpec... annotations) {
-
-		return this.build(paramName,
-			this.miscUtils.getTypeName(type),
-			annotations);
+	
+	public ParameterBuilder type(TypeName type) {
+	  
+	  this.type = type;
+	  return this;
 	}
-
-	public ParameterSpec build(String paramName, TypeName typeName) {
-
-		return this.build(paramName, typeName, new AnnotationSpec[]{});
+	
+	public ParameterBuilder type(Class<?> type) {
+	  
+	  this.type = this.miscUtils.getTypeName(type);
+	  return this;
 	}
-
-	public ParameterSpec build(String paramName, TypeName typeName, Class<? extends Annotation>... annotations) {
-
-		List<AnnotationSpec> annotationSpecs = Arrays.stream(annotations)
-			.map(annotation -> AnnotationSpec.builder(annotation).build())
-			.collect(Collectors.toList());
-
-		return this.build(paramName, typeName, annotationSpecs.toArray(new AnnotationSpec[]{}));
+	
+	public ParameterBuilder type(TypeMirror type) {
+	  
+	  this.type = this.miscUtils.getTypeName(type);
+	  return this;
 	}
-
-	public ParameterSpec build(String paramName, TypeName typeName, AnnotationSpec... annotations) {
-
-		ParameterSpec.Builder builder = ParameterSpec.builder(typeName, paramName);
-
-		Arrays.stream(annotations).forEach(builder::addAnnotation);
-
-		return builder.build();
+	
+	public ParameterBuilder annotation(AnnotationSpec annotation) {
+	  
+	  this.annotations.add(annotation);
+	  return this;
+	}
+	
+	public ParameterBuilder annotation(Class<? extends Annotation> annotation) {
+	  
+	  this.annotations.add(AnnotationSpec.builder(annotation).build());
+	  return this;
+	}
+	
+	public ParameterBuilder annotations(Class<? extends Annotation>... annotations) {
+	  
+	  Arrays.stream(annotations).forEach(ann -> this.annotations.add(AnnotationSpec.builder(ann).build()));
+	  return this;
+	}
+	
+	public ParameterBuilder modifier(Modifier modifier) {
+	  
+	  this.modifiers.add(modifier);
+	  return this;
+	}
+	
+	public ParameterBuilder modifiers(Modifier... modifiers) {
+	  
+	  Arrays.stream(modifiers).forEach(this.modifiers::add);
+	  return this;
+	}
+	
+	public ParameterSpec build() {
+	  
+	  ParameterSpec.Builder builder = ParameterSpec.builder(type, name, modifiers.toArray(new Modifier[] {}));
+	  
+	  this.annotations.forEach(builder::addAnnotation);
+	  
+	  this.type = null;
+	  this.name = null;
+	  this.modifiers.clear();
+	  this.annotations.clear();
+	  
+	  return builder.build();
 	}
 }

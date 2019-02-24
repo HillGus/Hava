@@ -25,13 +25,11 @@ import java.util.stream.Collectors;
 @AutoService(Processor.class)
 public class AnnotationProcessor extends AbstractProcessor {
 
-
   private Filer filer;
   private Messager messager;
   private Types typeUtils;
   private Elements elementUtils;
   private CodeGenerator codeGenerator;
-
 
   @Override
   public synchronized void init(ProcessingEnvironment processingEnv) {
@@ -65,6 +63,15 @@ public class AnnotationProcessor extends AbstractProcessor {
   @Override
   public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
 
+    configureCodeGenerator(roundEnv);
+    generateAuthentication(roundEnv);
+    generateCrud(roundEnv);
+    
+    return true;
+  }
+  
+  private void configureCodeGenerator(RoundEnvironment roundEnv) {
+    
     for (Element el : roundEnv.getElementsAnnotatedWith(HASConfiguration.class)) {
 
       HASConfiguration config = el.getAnnotation(HASConfiguration.class);
@@ -73,44 +80,28 @@ public class AnnotationProcessor extends AbstractProcessor {
       this.codeGenerator.setDebug(config.debug());
       this.codeGenerator.setClassesPrefix(config.classesPrefix());
     }
-
+  }
+  
+  private void generateAuthentication(RoundEnvironment roundEnv) {
+    
     for (Element el : roundEnv.getElementsAnnotatedWith(Authentication.class)) {
 
       Authentication auth = el.getAnnotation(Authentication.class);
 
-      String packageName = this.elementUtils.getPackageOf(el).getQualifiedName().toString();
-      
-      boolean createWebConfig = roundEnv.getElementsAnnotatedWith(EnableWebSecurity.class)
-          .stream().filter((Element ewsEl) -> {
-            return ewsEl.getAnnotation(Configuration.class) != null
-                && this.typeUtils.directSupertypes(ewsEl.asType()).contains(
-                    this.elementUtils.getTypeElement(WebSecurityConfigurerAdapter.class.getCanonicalName()).asType());
-          }).collect(Collectors.toList()).size() == 0;
-      
-      this.codeGenerator.generateAuthClasses(auth, packageName, createWebConfig);
+      this.codeGenerator.processAuthentication(auth, el, roundEnv);
     }
-
+  }
+  
+  private void generateCrud(RoundEnvironment roundEnv) {
+    
     for (Element element : roundEnv.getElementsAnnotatedWith(CRUD.class)) {
 
-      if (element.getKind() != ElementKind.CLASS) {
-        this.messager.printMessage(Kind.ERROR, "A element annotated with CRUD must be a class");
-        return false;
-      }
-
-      if (element.getAnnotationsByType(Entity.class).length == 0) {
-        this.messager.printMessage(Kind.ERROR, "A element annotated with CRUD must be annotated with \"javax.persistence.Entity\"");
-        return false;
-      }
-
       try {
-        this.codeGenerator.generateCrudClasses(element);
+        this.codeGenerator.processCrud(element);
       } catch (RuntimeException e) {
 
-        e.printStackTrace();
-        this.messager.printMessage(Kind.ERROR, "An exception occurred while generating code: " + e.getMessage(), element);
-        return false;
+        throw new RuntimeException("An exception occurred while generating code: " + e.getMessage());
       }
     }
-    return true;
   }
 }

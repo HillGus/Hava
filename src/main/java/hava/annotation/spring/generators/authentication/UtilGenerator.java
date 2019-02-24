@@ -1,36 +1,39 @@
 package hava.annotation.spring.generators.authentication;
 
+import java.util.Date;
+import javax.lang.model.element.Modifier;
+import org.springframework.stereotype.Component;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
-import hava.annotation.spring.builders.ParameterBuilder;
 import hava.annotation.spring.generators.CodeGenerator;
-import hava.annotation.spring.utils.MiscUtils;
+import hava.annotation.spring.generators.Generator;
+import hava.annotation.spring.generators.args.ThreeArgs;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
-import org.springframework.stereotype.Component;
 
-import javax.lang.model.element.Modifier;
-import java.util.Date;
+public class UtilGenerator extends Generator<ThreeArgs<String, Long, SignatureAlgorithm>> {
 
-public class UtilGenerator {
-
-	private ParameterBuilder parBuilder;
 
 	private String classesPrefix;
 
 	public UtilGenerator(CodeGenerator codeGenerator, String classesPrefix) {
 
-		this.parBuilder = codeGenerator.parBuilder;
+		super(codeGenerator);
+		
 		this.classesPrefix = classesPrefix;
 	}
 
-	public TypeSpec generate(String secret, Long expiration, SignatureAlgorithm algorithm) {
+	public TypeSpec generate(ThreeArgs<String, Long, SignatureAlgorithm> args) {
 
+	    String secret = args.one();
+	    Long expiration = args.two();
+	    SignatureAlgorithm algorithm = args.three();
+	  
 		MethodSpec generateToken = MethodSpec.methodBuilder("generateToken")
-			.addParameter(this.parBuilder.build("username", String.class))
+			.addParameter(this.parBuilder.name("username").type(String.class).build())
 			.addStatement(
 				"return $T.builder()\n"
 				+ ".setSubject(username)\n"
@@ -43,14 +46,15 @@ public class UtilGenerator {
 			.build();
 
 		MethodSpec validToken = MethodSpec.methodBuilder("validToken")
-			.addParameter(this.parBuilder.build("token", String.class))
+			.addParameter(this.parBuilder.name("token").type(String.class).build())
 			.beginControlFlow("if (token != null && !token.isEmpty())")
 				.addStatement("$T claims = this.getClaims(token)", Claims.class)
 				.beginControlFlow("if (claims != null)")
 					.addStatement("$T username = claims.getSubject()", String.class)
 					.addStatement("$T expirationDate = claims.getExpiration()", Date.class)
 					.addStatement("$T now = new $T($T.currentTimeMillis())", Date.class, Date.class, System.class)
-					.beginControlFlow("if ((username != null && !username.isEmpty()) && (expirationDate != null && now.before(expirationDate)))")
+					.beginControlFlow("if ((username != null && !username.isEmpty()) "
+					                  + "&& (expirationDate != null && now.before(expirationDate)))")
 						.addStatement("return true")
 					.endControlFlow()
 				.endControlFlow()
@@ -60,7 +64,7 @@ public class UtilGenerator {
 			.build();
 
 		MethodSpec getUsername = MethodSpec.methodBuilder("getUsername")
-			.addParameter(this.parBuilder.build("token", String.class))
+			.addParameter(this.parBuilder.name("token").type(String.class).build())
 			.addStatement("$T username = null", String.class)
 			.beginControlFlow("if (token != null && !token.isEmpty())")
 				.addStatement("$T claims = this.getClaims(token)", Claims.class)
@@ -73,7 +77,7 @@ public class UtilGenerator {
 			.build();
 
 		MethodSpec getClaims = MethodSpec.methodBuilder("getClaims")
-			.addParameter(this.parBuilder.build("token", String.class))
+			.addParameter(this.parBuilder.name("token").type(String.class).build())
 			.beginControlFlow("try")
 				.addStatement(
 					"return $T.parser()\n"

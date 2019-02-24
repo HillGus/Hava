@@ -1,61 +1,60 @@
 package hava.annotation.spring.generators.authentication;
 
-import com.squareup.javapoet.ClassName;
-import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.TypeSpec;
-import hava.annotation.spring.builders.AnnotationBuilder;
-import hava.annotation.spring.builders.ParameterBuilder;
-import hava.annotation.spring.configurators.AuthenticationConfigurator;
-import hava.annotation.spring.generators.CodeGenerator;
-import hava.annotation.spring.utils.MiscUtils;
-import org.springframework.http.HttpMethod;
-import org.springframework.stereotype.Service;
-
 import javax.lang.model.element.Modifier;
 import javax.lang.model.type.TypeMirror;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.FieldSpec;
+import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.TypeSpec;
+import hava.annotation.spring.configurators.AuthenticationConfigurator;
+import hava.annotation.spring.generators.CodeGenerator;
+import hava.annotation.spring.generators.Generator;
+import hava.annotation.spring.generators.args.TwoArgs;
 
-public class AuthenticationConfiguratorGenerator {
+public class AuthenticationConfiguratorGenerator extends Generator<TwoArgs<TypeMirror, Boolean>> {
 
-	private ParameterBuilder parBuilder;
-	private AnnotationBuilder annBuilder;
-	private MiscUtils miscUtils;
 
 	private String classesPrefix;
-	private String packageName;
 
-	private final String httpSecurityPackage = "org.springframework.security.config.annotation.web.builders";
-	private final String authBuildersPackage = "org.springframework.security.config.annotation.authentication.builders";
-	private final String authPackage = "org.springframework.security.authentication";
-	private final String securityUserDetailsPackage = "org.springframework.security.core.userdetails";
+	public AuthenticationConfiguratorGenerator(CodeGenerator codeGenerator, String classesPrefix) {
 
-	public AuthenticationConfiguratorGenerator(CodeGenerator codeGenerator, String classesPrefix, String packageName) {
-
-		this.miscUtils = codeGenerator.miscUtils;
-		this.parBuilder = codeGenerator.parBuilder;
-		this.annBuilder = codeGenerator.annBuilder;
+		super(codeGenerator);
+		
 		this.classesPrefix = classesPrefix;
-		this.packageName = packageName;
 	}
 
-	public TypeSpec generate(TypeMirror passwordEncoder, boolean useEncoderGetInstance) {
-
+	@Override
+	public TypeSpec generate(TwoArgs<TypeMirror, Boolean> args) {
+	  
+	    TypeMirror passwordEncoder = args.one();
+	    boolean useEncoderGetInstance = args.two();
+	  
 		MethodSpec configureHttp = MethodSpec.methodBuilder("configure")
 			.addAnnotation(Override.class)
 			.addModifiers(Modifier.PUBLIC)
 			.addException(Exception.class)
 			.addParameter(
-				this.parBuilder.build("http",
-					ClassName.get(httpSecurityPackage, "HttpSecurity")))
+			    this.parBuilder.name("http")
+			        .type(HttpSecurity.class)
+			        .build())
 			.addParameter(
-				this.parBuilder.build("authenticationManager",
-					ClassName.get(authPackage, "AuthenticationManager"))
-			)
+			    this.parBuilder.name("authenticationManager")
+			        .type(AuthenticationManager.class)
+			        .build())
 			.addStatement(
 				"http.addFilter(new $L(authenticationManager, jwtUtil))",
-				ClassName.get(this.packageName, this.classesPrefix + "JWTAuthenticationFilter"))
+				ClassName.get("", this.classesPrefix + "JWTAuthenticationFilter"))
 			.addStatement(
 				"http.addFilter(new $L(authenticationManager, jwtUtil, userDetailsService))",
-				ClassName.get(this.packageName, this.classesPrefix + "JWTAuthorizationFilter"))
+				ClassName.get("", this.classesPrefix + "JWTAuthorizationFilter"))
 			.addStatement(
 				"http.authorizeRequests().antMatchers(\"/login\").permitAll()",
 				HttpMethod.class)
@@ -66,8 +65,9 @@ public class AuthenticationConfiguratorGenerator {
 			.addModifiers(Modifier.PUBLIC)
 			.addException(Exception.class)
 			.addParameter(
-				this.parBuilder.build("auth",
-					ClassName.get(authBuildersPackage, "AuthenticationManagerBuilder")))
+			    this.parBuilder.name("auth")
+			        .type(AuthenticationManagerBuilder.class)
+			        .build())
 			.addStatement("auth.userDetailsService(this.userDetailsService).passwordEncoder(this.getPasswordEncoder())")
 			.build();
 
@@ -76,9 +76,16 @@ public class AuthenticationConfiguratorGenerator {
 		TypeSpec classe = TypeSpec.classBuilder(this.classesPrefix + "AuthenticationConfiguratorImpl")
 			.addAnnotation(Service.class)
 			.addSuperinterface(AuthenticationConfigurator.class)
-			.addField(this.miscUtils.autowire("jwtUtil", this.getUtilCanonicalName()))
-			.addField(this.miscUtils.autowire("userDetailsService",
-				ClassName.get(this.securityUserDetailsPackage, "UserDetailsService").toString()))
+			.addField(
+			    FieldSpec.builder(ClassName.get("", this.classesPrefix + "JWTUtil"), 
+			        "jwtUtil", Modifier.PRIVATE)
+    			    .addAnnotation(Autowired.class)
+    			    .build())
+			.addField(
+			    FieldSpec.builder(UserDetailsService.class, 
+			        "userDetailsService", Modifier.PRIVATE)
+    			    .addAnnotation(Autowired.class)
+    			    .build())
 			.addMethod(configureHttp)
 			.addMethod(configureAuth)
 			.addMethod(getPasswordEncoder)
@@ -91,8 +98,7 @@ public class AuthenticationConfiguratorGenerator {
 
 		MethodSpec.Builder builder = MethodSpec.methodBuilder("getPasswordEncoder")
 			.addModifiers(Modifier.PRIVATE)
-			.returns(ClassName.get(
-				"org.springframework.security.crypto.password", "PasswordEncoder"));
+			.returns(PasswordEncoder.class);
 
 		if (useEncoderGetInstance)
 			builder.addStatement("return $T.getInstance()", passwordEncoder);
@@ -103,10 +109,5 @@ public class AuthenticationConfiguratorGenerator {
 		}
 
 		return builder.build();
-	}
-
-	private String getUtilCanonicalName() {
-
-		return this.packageName + "." + this.classesPrefix + "JWTUtil";
 	}
 }

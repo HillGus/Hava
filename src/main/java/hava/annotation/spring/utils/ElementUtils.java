@@ -113,21 +113,21 @@ public class ElementUtils {
 
 	public ParameterSpec elementParam() {
 
-		return this.parUtils.build("entity", this.elementType);
+		return this.parUtils.name("entity").type(this.elementType).build();
 	}
 
 	public ParameterSpec elementReqBodyParam() {
 
-		return this.parUtils.build("entity", this.elementType, RequestBody.class);
+		return this.parUtils.name("entity").type(this.elementType).annotation(RequestBody.class).build();
 	}
 
 	public ParameterSpec elementIdParam() {
 
-		return this.parUtils.build("id", this.elementIdType);
+		return this.parUtils.name("id").type(this.elementIdType).build();
 	}
 
 	public ParameterSpec elementIdPathParam() {
 
-		return this.parUtils.build("id", this.elementIdType, this.annUtils.build(PathVariable.class, "id"));
+		return this.parUtils.name("id").type(this.elementIdType).annotation(this.annUtils.build(PathVariable.class, "id")).build();
 	}
 }

@@ -1,14 +1,15 @@
 package hava.annotation.spring.generators.crud;
 
+import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeSpec;
 import hava.annotation.spring.annotations.CRUD;
 import hava.annotation.spring.annotations.Filter;
-import hava.annotation.spring.builders.AnnotationBuilder;
 import hava.annotation.spring.generators.CodeGenerator;
-import hava.annotation.spring.utils.ElementUtils;
-import hava.annotation.spring.builders.ParameterBuilder;
-import hava.annotation.spring.utils.MiscUtils;
+import hava.annotation.spring.generators.Generator;
+import hava.annotation.spring.generators.args.ThreeArgs;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -16,13 +17,7 @@ import javax.lang.model.element.Modifier;
 import javax.lang.model.type.TypeMirror;
 import java.util.Arrays;
 
-public class ControllerGenerator {
-
-
-	private ElementUtils eleUtils;
-	private AnnotationBuilder annBuilder;
-	private ParameterBuilder parBuilder;
-	private MiscUtils miscUtils;
+public class ControllerGenerator extends Generator<ThreeArgs<String, String, CRUD>> {
 
 	private String suffix;
 	private String serSuffix;
@@ -33,17 +28,19 @@ public class ControllerGenerator {
 
 	public ControllerGenerator(CodeGenerator codeGenerator, String suffix, String serSuffix, String classesPrefix) {
 
-		this.eleUtils = codeGenerator.eleUtils;
-		this.annBuilder = codeGenerator.annBuilder;
-		this.parBuilder = codeGenerator.parBuilder;
-		this.miscUtils = codeGenerator.miscUtils;
+		super(codeGenerator);
+		
 		this.suffix = suffix;
 		this.serSuffix = serSuffix;
 		this.classesPrefix = classesPrefix;
 	}
 
-	public TypeSpec generate(String name, CRUD crud, String endpoint) {
+	public TypeSpec generate(ThreeArgs<String, String, CRUD> args) {
 
+	    String name = args.one();
+	    String endpoint = args.two();
+	    CRUD crud = args.three();
+	  
 		this.pagination = crud.pagination();
 		this.name = name;
 
@@ -69,13 +66,17 @@ public class ControllerGenerator {
 			.addStatement("return this.service.delete(id)")
 			.returns(ResponseEntity.class)
 			.build();
-
+		
+		String serviceClassName = this.classesPrefix + this.name + serSuffix;
+		
 		return TypeSpec.classBuilder(this.classesPrefix + name + this.suffix)
 			.addModifiers(Modifier.PUBLIC)
 			.addAnnotation(RestController.class)
 			.addAnnotation(this.annBuilder.requestMapping("/" + endpoint))
-			.addField(this.miscUtils.autowire("service",
-				serviceClassName()))
+			.addField(FieldSpec.builder(
+			    ClassName.get("", serviceClassName), "service")
+			        .addAnnotation(Autowired.class)
+			        .build())
 			.addMethod(all)
 			.addMethod(one)
 			.addMethod(save)
@@ -147,15 +148,15 @@ public class ControllerGenerator {
 
 		builder
 			.addParameter(
-				this.parBuilder.build(
-					"page",
-					Integer.class,
-					this.annBuilder.requestParam(false)))
+			    this.parBuilder.name("page")
+			        .type(Integer.class)
+			        .annotation(this.annBuilder.requestParam(false))
+			        .build())
 			.addParameter(
-				this.parBuilder.build(
-					"pageSize",
-					Integer.class,
-					this.annBuilder.requestParam(false)));
+			    this.parBuilder.name("pageSize")
+			        .type(Integer.class)
+			        .annotation(this.annBuilder.requestParam(false))
+			        .build());
 	}
 
 	private MethodSpec.Builder addArguments(MethodSpec.Builder builder, String[] fields) {
@@ -165,17 +166,12 @@ public class ControllerGenerator {
 			TypeMirror fieldType = this.eleUtils.getEnclosedElement(field).asType();
 
 			builder.addParameter(
-				this.parBuilder.build(
-					field,
-					this.miscUtils.getTypeName(fieldType),
-					this.annBuilder.requestParam( false)));
+			    this.parBuilder.name(field)
+			        .type(fieldType)
+			        .annotation(this.annBuilder.requestParam(false))
+			        .build());
 		});
 
 		return builder;
-	}
-
-	private String serviceClassName() {
-
-		return this.eleUtils.packageName() + "." + this.classesPrefix + this.name + this.serSuffix;
 	}
 }

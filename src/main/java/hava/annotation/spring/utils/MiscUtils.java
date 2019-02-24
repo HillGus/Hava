@@ -25,24 +25,14 @@ public class MiscUtils {
 
 	public String[] splitQualifiedName(String qualifiedName) {
 
-		StringBuilder packageName = new StringBuilder();
-		String objectName = "";
+	    if (!qualifiedName.contains("."))
+	      return new String[] {"", qualifiedName};
+	  
+		String objectName = qualifiedName.split("\\.")[qualifiedName.split("\\.").length -1];
+		
+		String packageName = qualifiedName.substring(0, qualifiedName.length() - objectName.length() - 1);
 
-		String[] divisoes = qualifiedName.split("\\.");
-		for (int i = 0; i < divisoes.length; i++) {
-
-			String div = divisoes[i];
-
-			if (i < divisoes.length - 1) {
-				packageName.append(div);
-				if (i < divisoes.length - 2)
-					packageName.append('.');
-			} else {
-				objectName = div;
-			}
-		}
-
-		return new String[]{packageName.toString(), objectName};
+		return new String[]{packageName, objectName};
 	}
 
 	public TypeName getTypeName(TypeMirror type) {
