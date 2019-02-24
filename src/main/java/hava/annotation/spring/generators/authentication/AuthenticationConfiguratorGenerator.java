@@ -47,15 +47,14 @@ public class AuthenticationConfiguratorGenerator {
 				this.parBuilder.build("http",
 					ClassName.get(httpSecurityPackage, "HttpSecurity")))
 			.addParameter(
-				this.parBuilder.build("authManager",
+				this.parBuilder.build("authenticationManager",
 					ClassName.get(authPackage, "AuthenticationManager"))
 			)
-			.addStatement("http.cors().and().csrf().disable()")
 			.addStatement(
-				"http.addFilter(new $L(authManager, jwtUtil))",
+				"http.addFilter(new $L(authenticationManager, jwtUtil))",
 				ClassName.get(this.packageName, this.classesPrefix + "JWTAuthenticationFilter"))
 			.addStatement(
-				"http.addFilter(new $L(authManager, jwtUtil, userDetailsService))",
+				"http.addFilter(new $L(authenticationManager, jwtUtil, userDetailsService))",
 				ClassName.get(this.packageName, this.classesPrefix + "JWTAuthorizationFilter"))
 			.addStatement(
 				"http.authorizeRequests().antMatchers(\"/login\").permitAll()",

@@ -15,8 +15,12 @@ import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.persistence.Entity;
 import javax.tools.Diagnostic.Kind;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @AutoService(Processor.class)
 public class AnnotationProcessor extends AbstractProcessor {
@@ -75,8 +79,15 @@ public class AnnotationProcessor extends AbstractProcessor {
       Authentication auth = el.getAnnotation(Authentication.class);
 
       String packageName = this.elementUtils.getPackageOf(el).getQualifiedName().toString();
-
-      this.codeGenerator.generateAuthClasses(auth, packageName);
+      
+      boolean createWebConfig = roundEnv.getElementsAnnotatedWith(EnableWebSecurity.class)
+          .stream().filter((Element ewsEl) -> {
+            return ewsEl.getAnnotation(Configuration.class) != null
+                && this.typeUtils.directSupertypes(ewsEl.asType()).contains(
+                    this.elementUtils.getTypeElement(WebSecurityConfigurerAdapter.class.getCanonicalName()).asType());
+          }).collect(Collectors.toList()).size() == 0;
+      
+      this.codeGenerator.generateAuthClasses(auth, packageName, createWebConfig);
     }
 
     for (Element element : roundEnv.getElementsAnnotatedWith(CRUD.class)) {

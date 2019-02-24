@@ -39,7 +39,6 @@ public class CodeGenerator {
 	private Filer filer;
 	private Elements elementUtils;
 	private Types typeUtils;
-	private Messager messager;
 
 	private boolean debug;
 	private String repSuffix;
@@ -55,10 +54,9 @@ public class CodeGenerator {
 		this.filer = filer;
 		this.elementUtils = elementUtils;
 		this.typeUtils = typeUtils;
-		this.messager = messager;
 
 		try {
-			setDebug((boolean) HASConfiguration.class.getDeclaredMethod("debug").getDefaultValue());
+			setDebug((Boolean) HASConfiguration.class.getDeclaredMethod("debug").getDefaultValue());
 			setSuffixes((Suffixes) HASConfiguration.class.getDeclaredMethod("suffixes").getDefaultValue());
 			setClassesPrefix((String) HASConfiguration.class.getDeclaredMethod("classesPrefix").getDefaultValue());
 		} catch (Exception e) {
@@ -67,25 +65,25 @@ public class CodeGenerator {
 	}
 
 
-	public void generateAuthClasses(Authentication auth, String packageName) throws RuntimeException {
+	public void generateAuthClasses(final Authentication auth, String packageName, boolean createWebConfig) throws RuntimeException {
 
 		this.generatedFor = "JWT Authentication";
 		TypeMirror encoderType = null;
+		TypeMirror successAuthHandlerType = null;
+		TypeMirror failureAuthHandlerType = null;
+		
+		encoderType = this.getTypeMirror(auth::encoder);
+		successAuthHandlerType = this.getTypeMirror(auth::authenticationSuccessHandler);
+		failureAuthHandlerType = this.getTypeMirror(auth::authenticationFailureHandler);
 
-		try {
-			auth.encoder();
-		} catch (MirroredTypeException e) {
-			encoderType = e.getTypeMirror();
-		}
-
-		boolean useEncoderGetInstance = hasGetInstanceMethod(encoderType);
-		verifyEncoderType(encoderType, useEncoderGetInstance);
-
+		boolean useEncoderGetInstance = validateEncoder(encoderType);
+		validateHandlers(successAuthHandlerType, failureAuthHandlerType);
+		
 		String secret = auth.secret();
 		SignatureAlgorithm algorithm = auth.algorithm();
 		Long expiration = auth.expiration();
 
-		WebConfigGenerator webConfigGenerator = new WebConfigGenerator(this, this.classesPrefix, packageName);
+		WebConfigGenerator webConfigGenerator = new WebConfigGenerator(this, this.classesPrefix);
 		UtilGenerator utilGenerator = new UtilGenerator(this, this.classesPrefix);
 		AuthenticationFilterGenerator authFilterGenerator = new AuthenticationFilterGenerator(this, this.classesPrefix, packageName);
 		AuthorizationFilterGenerator authoFilterGenerator = new AuthorizationFilterGenerator(this, this.classesPrefix, packageName);
@@ -97,68 +95,104 @@ public class CodeGenerator {
 			packageName
 		);
 
-		/*save(
-			webConfigGenerator.generate(encoderType, useEncoderGetInstance, order),
-			packageName);*/
+		if (createWebConfig)
+		  save(
+	            webConfigGenerator.generate(),
+	            packageName);
 
 		save(
 			utilGenerator.generate(secret, expiration, algorithm),
 			packageName);
 
-		save(authFilterGenerator.generate(),
+		save(authFilterGenerator.generate(successAuthHandlerType, failureAuthHandlerType),
 			packageName);
 
 		save(authoFilterGenerator.generate(),
 			packageName);
 	}
-
-	public boolean hasGetInstanceMethod(TypeMirror type) {
-
-		boolean result = false;
-
-		Element clazz = this.typeUtils.asElement(type);
-
-		for (Element element : clazz.getEnclosedElements()) {
-
-			if (element.getKind() == ElementKind.METHOD) {
-
-				String name = element.getSimpleName().toString();
-				String erasure = this.typeUtils.erasure(element.asType()).toString();
-				if ("getInstance".equals(name)
-					&& ("()" + type.toString()).equals(erasure)
-					&& (element.getModifiers().contains(Modifier.PUBLIC))
-					&& (element.getModifiers().contains(Modifier.STATIC)))
-					result = true;
-			}
-		}
-
-		if (!result)
-			this.messager.printMessage(Kind.NOTE, String.format(
-				"----- Consider creating a public static %s getInstance() method at %s -----",
-				type.toString(), type.toString()
-			));
-
-		return result;
+	
+	private TypeMirror getTypeMirror(Runnable error) {
+	  
+	  try {
+	    error.run();
+	  } catch (MirroredTypeException e) {
+	    return e.getTypeMirror();
+	  }
+	  
+	  return null;
+	}
+	
+	private void validateHandlers(TypeMirror success, TypeMirror failure) {
+	  
+	  boolean extendsSuccessHandler = false;
+	  boolean extendsFailureHandler = false;
+	  
+	  List<? extends TypeMirror> successSupers = this.typeUtils.directSupertypes(success);
+	  String webAuthPackage = "org.springframework.security.web.authentication";
+	  
+	  for (TypeMirror successSuper : successSupers) {
+	    
+	    if ((webAuthPackage + ".AuthenticationSuccessHandler").equals(successSuper.toString()))
+	      extendsSuccessHandler = true;
+	  }
+	  
+	  if (!"java.lang.Void".equals(success.toString())) {
+	  
+    	  if (!extendsSuccessHandler)
+    	    throw new RuntimeException("A class used as authenticationSuccessHandler for @Autentication must extend " + webAuthPackage + ".AuthenticationSuccessHandler");
+    	
+    	  if (!hasNoArgsConstructor(this.typeUtils.asElement(success)))
+    	    throw new RuntimeException("A class used as authenticationSuccessHandler for @Authentication must have a public constructor with no arguments");
+	  }
+	  List<? extends TypeMirror> failureSupers = this.typeUtils.directSupertypes(failure);
+	  
+	  for (TypeMirror failureSuper : failureSupers) {
+	    
+	    if ((webAuthPackage + ".AuthenticationFailureHandler").equals(failureSuper.toString()))
+	      extendsFailureHandler = true;
+	  }
+	  
+	  if (!"java.lang.Void".equals(failure.toString())) {
+	  
+    	  if (!extendsFailureHandler)
+    	    throw new RuntimeException("A class used as authenticationFailureHandler for @Autentication must extend " + webAuthPackage + ".AuthenticationFailureHandler");
+    	  
+    	  if (!hasNoArgsConstructor(this.typeUtils.asElement(failure)))
+            throw new RuntimeException("A class used as authenticationFailureHandler for @Authentication must have a public constructor with no arguments");
+	  }
 	}
 
-	public void verifyEncoderType(TypeMirror type, boolean haveGetInstance) {
+	private boolean validateEncoder(TypeMirror type) {
 
 		Element encoderEle = this.typeUtils.asElement(type);
 
-		boolean noArgsConstructor = false;
-
+		boolean noArgsConstructor = this.hasNoArgsConstructor(encoderEle);
+		boolean haveGetInstance = false;
+		
 		for (Element element : encoderEle.getEnclosedElements()) {
+			
+			if (element.getKind() == ElementKind.METHOD) {
 
-			if (element.getKind() == ElementKind.CONSTRUCTOR) {
-				if ("()void".equals(this.typeUtils.erasure(element.asType()).toString())
-				&& element.getModifiers().contains(Modifier.PUBLIC))
-					noArgsConstructor = true;
-			}
+              String name = element.getSimpleName().toString();
+              String erasure = this.typeUtils.erasure(element.asType()).toString();
+              if ("getInstance".equals(name)
+                  && (("()" + type.toString()).equals(erasure)
+                      || ("()"  + "org.springframework.security.crypto.password.PasswordEncoder").equals(erasure))
+                  && (element.getModifiers().contains(Modifier.PUBLIC))
+                  && (element.getModifiers().contains(Modifier.STATIC)))
+                  haveGetInstance = true;
+          }
 		}
 
 		if (!noArgsConstructor && !haveGetInstance)
-			throw new RuntimeException("A class used as encoder for @Authentication must have a constructor with no arguments or a public static getInstance method");
+			throw new RuntimeException("A class used as encoder for @Authentication must have a public constructor with no arguments or a public static getInstance method");
 
+		if (!haveGetInstance)
+          System.out.println(String.format(
+              "----- Consider creating a public static %s getInstance() method at %s -----",
+              type.toString(), type.toString()
+          ));
+		
 		List<? extends TypeMirror> encoderSuperClasses = this.typeUtils.directSupertypes(type);
 		String passwordEncoderPath = "org.springframework.security.crypto.password.PasswordEncoder";
 
@@ -173,7 +207,23 @@ public class CodeGenerator {
 		if (!implementsPassEncoder) {
 			throw new RuntimeException("A class used as encoder for @Authentication must implement org.springframework.security.crypto.password.PasswordEncoder");
 		}
+		
+		return haveGetInstance;
 
+	}
+	
+	private boolean hasNoArgsConstructor(Element element) {
+	  
+	  for (Element el : element.getEnclosedElements()) {
+	    
+	    if (el.getKind() == ElementKind.CONSTRUCTOR) {
+	        if ("()void".equals(this.typeUtils.erasure(el.asType()).toString())
+	        && el.getModifiers().contains(Modifier.PUBLIC))
+	            return true;
+	      }
+	  }
+	  
+	  return false;
 	}
 
 	public void generateCrudClasses(Element element) throws RuntimeException {

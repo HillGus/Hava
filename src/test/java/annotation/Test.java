@@ -23,4 +23,7 @@ public class Test {
   private String senha;
 
   public Test() {}
+  
+  public String getNome() { return this.nome; }
+  public String getSenha() { return this.senha; }
 }
