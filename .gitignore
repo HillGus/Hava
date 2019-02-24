@@ -1,4 +1,6 @@
 /target/*
 .idea/*
 Hava.iml
-/bin/
+/bin/*
+/.classpath
+/.project
