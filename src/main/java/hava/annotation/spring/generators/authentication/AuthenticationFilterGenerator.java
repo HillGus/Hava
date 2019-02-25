@@ -56,9 +56,7 @@ public class AuthenticationFilterGenerator extends Generator<TwoArgs<TypeMirror,
         .addStatement("this.authManager = authManager")
         .addStatement("this.jwtUtil = jwtUtil");
 
-    if (!"java.lang.Void".equals(successHandler.toString())) {
-
-      constructorBuilder.addStatement("setAuthenticationSuccessHandler(new $T())", successHandler);
+    if ("java.lang.Void".equals(successHandler.toString())) {
 
       MethodSpec successfulAuthentication = MethodSpec.methodBuilder("successfulAuthentication")
           .addAnnotation(Override.class)
@@ -92,11 +90,12 @@ public class AuthenticationFilterGenerator extends Generator<TwoArgs<TypeMirror,
           .build();
 
       builder.addMethod(successfulAuthentication);
+    } else {
+
+      constructorBuilder.addStatement("setAuthenticationSuccessHandler(new $T())", successHandler);
     }
 
-    if (!"java.lang.Void".equals(failureHandler.toString())) {
-
-      constructorBuilder.addStatement("setAuthenticationFailureHandler(new $T())", failureHandler);
+    if ("java.lang.Void".equals(failureHandler.toString())) {
 
       MethodSpec unsuccessfulAuthentication = MethodSpec.methodBuilder("unsuccessfulAuthentication")
           .addAnnotation(Override.class).addModifiers(Modifier.PROTECTED)
@@ -120,7 +119,11 @@ public class AuthenticationFilterGenerator extends Generator<TwoArgs<TypeMirror,
           .build();
 
       builder.addMethod(unsuccessfulAuthentication);
+    } else {
+
+      constructorBuilder.addStatement("setAuthenticationFailureHandler(new $T())", failureHandler);
     }
+
     MethodSpec constructor = constructorBuilder.build();
 
     MethodSpec attemptAuthentication = MethodSpec.methodBuilder("attemptAuthentication")
