@@ -72,8 +72,8 @@ public class ParameterBuilder {
 	}
 	
 	public ParameterBuilder modifiers(Modifier... modifiers) {
-	  
-	  Arrays.stream(modifiers).forEach(this.modifiers::add);
+
+		this.modifiers.addAll(Arrays.asList(modifiers));
 	  return this;
 	}
 	

@@ -2,7 +2,7 @@ package annotation;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface TesteRepository extends JpaRepository<Test, Long> {
+public interface TesteRepository extends JpaRepository<User, Long> {
 
-	Test findByNome(String nome);
+	User findByNome(String nome);
 }

@@ -107,7 +107,7 @@ public class UtilGenerator extends Generator<ThreeArgs<String, Long, SignatureAl
 			.initializer("$S", secret)
 			.build();
 
-		TypeSpec classe = TypeSpec.classBuilder(this.classesPrefix + "JWTUtil")
+		return TypeSpec.classBuilder(this.classesPrefix + "JWTUtil")
 			.addAnnotation(Component.class)
 			.addField(expirationField)
 			.addField(algorithmField)
@@ -117,7 +117,5 @@ public class UtilGenerator extends Generator<ThreeArgs<String, Long, SignatureAl
 			.addMethod(getUsername)
 			.addMethod(getClaims)
 			.build();
-
-		return classe;
 	}
 }

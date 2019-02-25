@@ -37,16 +37,15 @@ import hava.annotation.spring.generators.crud.ControllerGenerator;
 import hava.annotation.spring.generators.crud.RepositoryGenerator;
 import hava.annotation.spring.generators.crud.ServiceGenerator;
 import hava.annotation.spring.utils.ElementUtils;
-import hava.annotation.spring.utils.MiscUtils;
 import io.jsonwebtoken.SignatureAlgorithm;
 
 public class CodeGenerator {
 
 
   public ParameterBuilder parBuilder = new ParameterBuilder();
-  public AnnotationBuilder annBuilder = new AnnotationBuilder();
-  public MiscUtils miscUtils = new MiscUtils();
-  public ElementUtils eleUtils;
+  AnnotationBuilder annBuilder = new AnnotationBuilder();
+  ElementUtils eleUtils;
+  private StringUtils strUtils = new StringUtils();
 
   private Filer filer;
   private Elements elementUtils;
@@ -60,7 +59,7 @@ public class CodeGenerator {
 
   private String generatedFor;
 
-  public CodeGenerator(Elements elementUtils, Filer filer, Types typeUtils, Messager messager) {
+  public CodeGenerator(Elements elementUtils, Filer filer, Types typeUtils) {
 
     this.filer = filer;
     this.elementUtils = elementUtils;
@@ -87,13 +86,9 @@ public class CodeGenerator {
 
     boolean createWebConfig = shouldCreateWebConfig(roundEnv);
 
-    TypeMirror encoderType = null;
-    TypeMirror successAuthHandlerType = null;
-    TypeMirror failureAuthHandlerType = null;
-
-    encoderType = this.getTypeMirror(auth::encoder);
-    successAuthHandlerType = this.getTypeMirror(auth::authenticationSuccessHandler);
-    failureAuthHandlerType = this.getTypeMirror(auth::authenticationFailureHandler);
+    TypeMirror encoderType = this.getTypeMirror(auth::encoder);
+    TypeMirror successAuthHandlerType = this.getTypeMirror(auth::authenticationSuccessHandler);
+    TypeMirror failureAuthHandlerType = this.getTypeMirror(auth::authenticationFailureHandler);
 
     boolean useEncoderGetInstance = validateEncoder(encoderType);
     validateHandlers(successAuthHandlerType, failureAuthHandlerType);
@@ -140,11 +135,10 @@ public class CodeGenerator {
   private boolean shouldCreateWebConfig(RoundEnvironment roundEnv) {
 
     return roundEnv.getElementsAnnotatedWith(EnableWebSecurity.class).stream()
-        .filter((Element ewsEl) -> {
-          return ewsEl.getAnnotation(Configuration.class) != null
+        .filter(ewsEl -> ewsEl.getAnnotation(Configuration.class) != null
               && this.typeUtils.directSupertypes(ewsEl.asType()).contains(this.elementUtils
-                  .getTypeElement(WebSecurityConfigurerAdapter.class.getCanonicalName()).asType());
-        }).collect(Collectors.toList()).size() == 0;
+                .getTypeElement(WebSecurityConfigurerAdapter.class.getCanonicalName()).asType()))
+        .collect(Collectors.toList()).size() == 0;
   }
 
   private TypeMirror getTypeMirror(Runnable error) {
@@ -322,11 +316,11 @@ public class CodeGenerator {
     try {
       if (debug) {
         System.out.println("\n"
-            + StringUtils.center(String.format("Class generated for %s", generatedFor), 75, '-'));
+            + this.strUtils.center(String.format("Class generated for %s", generatedFor)));
 
         file.writeTo(System.out);
 
-        System.out.println(StringUtils.center("", 75, '-'));
+        System.out.println(this.strUtils.center(""));
       }
 
       file.writeTo(this.filer);
@@ -352,23 +346,26 @@ public class CodeGenerator {
 
     this.classesPrefix = classesPrefix;
   }
-}
 
+  private class StringUtils {
 
-class StringUtils {
+    String center(String s) {
 
-  static String center(String s, int size, char pad) {
-    if (s == null || size <= s.length())
-      return s;
+      int size = 75;
+      char pad = '-';
 
-    StringBuilder sb = new StringBuilder(size);
-    for (int i = 0; i < (size - s.length()) / 2; i++) {
-      sb.append(pad);
+      if (s == null || size <= s.length())
+        return s;
+
+      StringBuilder sb = new StringBuilder(size);
+      for (int i = 0; i < (size - s.length()) / 2; i++) {
+        sb.append(pad);
+      }
+      sb.append(s);
+      while (sb.length() < size) {
+        sb.append(pad);
+      }
+      return sb.toString();
     }
-    sb.append(s);
-    while (sb.length() < size) {
-      sb.append(pad);
-    }
-    return sb.toString();
   }
 }

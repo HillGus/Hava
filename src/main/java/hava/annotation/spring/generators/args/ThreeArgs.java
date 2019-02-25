@@ -10,7 +10,7 @@ public class ThreeArgs<A, B, C> extends TwoArgs<A, B> {
     return this.three;
   }
   
-  public ThreeArgs(A arg1, B arg2, C arg3) {
+  ThreeArgs(A arg1, B arg2, C arg3) {
     
     super(arg1, arg2);
     this.three = arg3;
@@ -18,6 +18,6 @@ public class ThreeArgs<A, B, C> extends TwoArgs<A, B> {
   
   public static <D, E, F> ThreeArgs<D, E, F> of(D arg1, E arg2, F arg3) {
     
-    return new ThreeArgs<D, E, F>(arg1, arg2, arg3);
+    return new ThreeArgs<>(arg1, arg2, arg3);
   }
 }

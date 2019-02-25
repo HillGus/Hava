@@ -58,7 +58,7 @@ public class WebConfigGenerator extends Generator<NoArgs> {
 		    .addAnnotation(Autowired.class)
 		    .build();
 		
-		TypeSpec classe = TypeSpec.classBuilder(this.classesPrefix + "WebSecurityConfigurer")
+		return TypeSpec.classBuilder(this.classesPrefix + "WebSecurityConfigurer")
 			.addAnnotation(Configuration.class)
 			.addAnnotation(EnableWebSecurity.class)
 			.superclass(WebSecurityConfigurerAdapter.class)
@@ -66,7 +66,5 @@ public class WebConfigGenerator extends Generator<NoArgs> {
 			.addMethod(configureHttp)
 			.addMethod(configureAuth)
 			.build();
-
-		return classe;
 	}
 }

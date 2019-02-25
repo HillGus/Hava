@@ -73,7 +73,7 @@ public class AuthenticationConfiguratorGenerator extends Generator<TwoArgs<TypeM
 
 		MethodSpec getPasswordEncoder = generateGetPasswordEncoder(passwordEncoder, useEncoderGetInstance);
 
-		TypeSpec classe = TypeSpec.classBuilder(this.classesPrefix + "AuthenticationConfiguratorImpl")
+		return TypeSpec.classBuilder(this.classesPrefix + "AuthenticationConfiguratorImpl")
 			.addAnnotation(Service.class)
 			.addSuperinterface(AuthenticationConfigurator.class)
 			.addField(
@@ -90,8 +90,6 @@ public class AuthenticationConfiguratorGenerator extends Generator<TwoArgs<TypeM
 			.addMethod(configureAuth)
 			.addMethod(getPasswordEncoder)
 			.build();
-
-		return classe;
 	}
 
 	private MethodSpec generateGetPasswordEncoder(TypeMirror passwordEncoder, boolean useEncoderGetInstance) {

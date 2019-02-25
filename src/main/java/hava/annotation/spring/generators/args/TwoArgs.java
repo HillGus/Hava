@@ -9,7 +9,7 @@ public class TwoArgs<A, B> extends Args<A> {
     return this.two;
   }
 
-  public TwoArgs(A arg1, B arg2) {
+  TwoArgs(A arg1, B arg2) {
 
     super(arg1);
 
@@ -18,6 +18,6 @@ public class TwoArgs<A, B> extends Args<A> {
 
   public static <C, D> TwoArgs<C, D> of(C arg1, D arg2) {
 
-    return new TwoArgs<C, D>(arg1, arg2);
+    return new TwoArgs<>(arg1, arg2);
   }
 }

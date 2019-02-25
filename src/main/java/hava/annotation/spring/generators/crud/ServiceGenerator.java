@@ -25,7 +25,6 @@ public class ServiceGenerator extends Generator<TwoArgs<String, CRUD>> {
 	private String suffix;
 	private String repSuffix;
 	private String classesPrefix;
-	private String name;
 
 	private boolean pagination;
 
@@ -44,7 +43,6 @@ public class ServiceGenerator extends Generator<TwoArgs<String, CRUD>> {
 	    CRUD crud = args.two();
 	  
 		this.pagination = crud.pagination();
-		this.name = name;
 
 		MethodSpec save = this.createMethod("save")
 			.addParameter(this.eleUtils.elementParam())
@@ -64,7 +62,7 @@ public class ServiceGenerator extends Generator<TwoArgs<String, CRUD>> {
 			.addStatement("return new $T($T.NO_CONTENT)", ResponseEntity.class, HttpStatus.class)
 			.build();
 
-		String repositoryClassName = this.classesPrefix + this.name + this.repSuffix;
+		String repositoryClassName = this.classesPrefix + name + this.repSuffix;
 		
 		return TypeSpec.classBuilder(this.classesPrefix + name + this.suffix)
 			.addModifiers(Modifier.PUBLIC)

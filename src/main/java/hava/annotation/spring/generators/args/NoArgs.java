@@ -2,7 +2,7 @@ package hava.annotation.spring.generators.args;
 
 public class NoArgs extends Args<Object> {
 
-  public NoArgs() {
+  NoArgs() {
     super(null);
   }
 

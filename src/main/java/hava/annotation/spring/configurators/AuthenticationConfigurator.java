@@ -6,6 +6,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 
 public interface AuthenticationConfigurator {
 
-	public void configure(HttpSecurity http, AuthenticationManager authManager) throws Exception;
-	public void configure(AuthenticationManagerBuilder auth) throws Exception;
+	void configure(HttpSecurity http, AuthenticationManager authManager) throws Exception;
+	void configure(AuthenticationManagerBuilder auth) throws Exception;
 }

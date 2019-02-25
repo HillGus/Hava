@@ -9,44 +9,27 @@ import hava.annotation.spring.generators.CodeGenerator;
 import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.util.Elements;
-import javax.lang.model.util.Types;
-import javax.persistence.Entity;
-import javax.tools.Diagnostic.Kind;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @AutoService(Processor.class)
 public class AnnotationProcessor extends AbstractProcessor {
 
-  private Filer filer;
-  private Messager messager;
-  private Types typeUtils;
-  private Elements elementUtils;
+
   private CodeGenerator codeGenerator;
 
   @Override
   public synchronized void init(ProcessingEnvironment processingEnv) {
     super.init(processingEnv);
-
-    this.filer = processingEnv.getFiler();
-    this.messager = processingEnv.getMessager();
-    this.typeUtils = processingEnv.getTypeUtils();
-    this.elementUtils = processingEnv.getElementUtils();
     
-    this.codeGenerator = new CodeGenerator(this.elementUtils, this.filer, this.typeUtils, this.messager);
+    this.codeGenerator = new CodeGenerator(processingEnv.getElementUtils(), processingEnv.getFiler(), processingEnv.getTypeUtils());
   }
 
   @Override
   public SourceVersion getSupportedSourceVersion() {
 
-    return SourceVersion.latestSupported();
+    return SourceVersion.RELEASE_8;
   }
 
   @Override

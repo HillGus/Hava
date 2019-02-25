@@ -22,7 +22,6 @@ public class ControllerGenerator extends Generator<ThreeArgs<String, String, CRU
 	private String suffix;
 	private String serSuffix;
 	private String classesPrefix;
-	private String name;
 
 	private boolean pagination;
 
@@ -42,7 +41,6 @@ public class ControllerGenerator extends Generator<ThreeArgs<String, String, CRU
 	    CRUD crud = args.three();
 	  
 		this.pagination = crud.pagination();
-		this.name = name;
 
 		MethodSpec one = MethodSpec.methodBuilder("one")
 			.addAnnotation(this.annBuilder.getMapping("{id}"))
@@ -67,7 +65,7 @@ public class ControllerGenerator extends Generator<ThreeArgs<String, String, CRU
 			.returns(ResponseEntity.class)
 			.build();
 		
-		String serviceClassName = this.classesPrefix + this.name + serSuffix;
+		String serviceClassName = this.classesPrefix + name + serSuffix;
 		
 		return TypeSpec.classBuilder(this.classesPrefix + name + this.suffix)
 			.addModifiers(Modifier.PUBLIC)
