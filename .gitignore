@@ -3,4 +3,5 @@
 Hava.iml
 /bin/*
 /.classpath
-/.project
+/.project/*
+/.settings/*
